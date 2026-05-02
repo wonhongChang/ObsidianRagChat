@@ -75,11 +75,10 @@ def index_documents_bulk(documents):
     try:
         success, failed = bulk(es, actions, raise_on_error=False)
 
-        # failed는 실패한 항목의 리스트일 수 있음
-        failed_count = len(failed) if isinstance(failed, list) else failed
-
-        if failed_count > 0:
-            print(f"⚠️  {failed_count}개 문서 인덱싱 실패 (성공: {success}개)")
+        if failed:
+            print(f"⚠️  {len(failed)}개 문서 인덱싱 실패 (성공: {success}개)")
+            for err in failed[:3]:
+                print(f"  ❌ 실패 문서: {err}")
         else:
             print(f"✅ {len(documents)}개 문서 Elasticsearch 인덱싱 완료")
 

@@ -9,7 +9,6 @@
 """
 
 import pytest
-from unittest.mock import Mock, patch
 from search.question_detector import (
     is_independent_question,
     save_query,
@@ -60,19 +59,17 @@ def test_rephrase_high_similarity():
 
 
 def test_rephrase_low_similarity():
-    """90% 미만 유사도 → Rephrase 아님, 규칙 또는 GPT 판단"""
+    """90% 미만 유사도 → Rephrase 아님, 규칙 미결정 시 Follow-up"""
     query1 = "Redis 캐싱 설명해줘"
-    query2 = "FastAPI 설명해줘"  # 완전히 다른 질문
+    query2 = "FastAPI 설명해줘"  # object marker 없음 → 규칙 미결정 → Follow-up
     history = [{"role": "assistant", "content": "Redis는..."}]
 
-    # 첫 질문 저장
     save_query(query1)
 
-    # 다른 질문 (규칙 감지로 독립 질문 처리될 것)
     result = is_independent_question(query2, history)
 
-    assert result is True  # "X 설명해줘" 패턴으로 독립 질문
-    print("✅ 낮은 유사도 → 다른 로직으로 처리")
+    assert result is False  # 규칙 미결정 → 안전하게 Follow-up
+    print("✅ 낮은 유사도 → 규칙 미결정 → Follow-up 처리")
 
 
 # ===== 규칙 기반 감지 테스트 =====
@@ -181,59 +178,21 @@ def test_rule_about_pattern_with_pronoun():
         print(f"✅ 대명사 우선 감지 성공: {query}")
 
 
-# ===== GPT-4o-mini 모킹 테스트 =====
+# ===== 규칙 미결정 → Follow-up 기본값 테스트 =====
 
-@patch('search.question_detector.openai_client.chat.completions.create')
-def test_gpt_independent_yes(mock_gpt):
-    """GPT가 YES 반환 → 독립 질문"""
-    # GPT 모킹
-    mock_response = Mock()
-    mock_response.choices = [Mock()]
-    mock_response.choices[0].message.content = "YES"
-    mock_gpt.return_value = mock_response
-
-    query = "새로운 주제 질문"  # 규칙에 걸리지 않는 질문
+def test_ambiguous_defaults_to_followup():
+    """규칙으로 판단 불가한 모호한 질문 → Follow-up으로 처리"""
+    queries = [
+        "더 자세히 설명해줘",
+        "예시를 들어줘",
+        "새로운 주제 질문",
+    ]
     history = [{"role": "assistant", "content": "이전 답변"}]
 
-    result = is_independent_question(query, history)
-
-    assert result is True
-    assert mock_gpt.called
-    print("✅ GPT YES 판단 성공")
-
-
-@patch('search.question_detector.openai_client.chat.completions.create')
-def test_gpt_independent_no(mock_gpt):
-    """GPT가 NO 반환 → Follow-up 질문"""
-    # GPT 모킹
-    mock_response = Mock()
-    mock_response.choices = [Mock()]
-    mock_response.choices[0].message.content = "NO"
-    mock_gpt.return_value = mock_response
-
-    query = "더 자세히 설명해줘"  # 규칙에 걸리지 않는 Follow-up
-    history = [{"role": "assistant", "content": "이전 답변"}]
-
-    result = is_independent_question(query, history)
-
-    assert result is False
-    assert mock_gpt.called
-    print("✅ GPT NO 판단 성공")
-
-
-@patch('search.question_detector.openai_client.chat.completions.create')
-def test_gpt_error_fallback(mock_gpt):
-    """GPT 호출 에러 → 안전하게 독립 질문으로 처리"""
-    # GPT 호출 실패 시뮬레이션
-    mock_gpt.side_effect = Exception("API Error")
-
-    query = "새로운 질문"
-    history = [{"role": "assistant", "content": "이전 답변"}]
-
-    result = is_independent_question(query, history)
-
-    assert result is True  # 에러 시 독립 질문으로 처리
-    print("✅ GPT 에러 처리 성공")
+    for query in queries:
+        result = is_independent_question(query, history)
+        assert result is False
+        print(f"✅ 모호한 질문 → Follow-up 처리: {query}")
 
 
 # ===== 최근 질문 저장/조회 테스트 =====
@@ -362,8 +321,7 @@ def test_scenario_multilingual_caching():
     print("✅ 다국어 전환 시나리오 성공")
 
 
-@patch('search.question_detector.openai_client.chat.completions.create')
-def test_scenario_followup_detection(mock_gpt):
+def test_scenario_followup_detection():
     """실제 사용 시나리오: Follow-up 질문 감지"""
     # 1. 첫 질문 (독립)
     query1 = "#RagChat 문서 요약해줘"

@@ -1,5 +1,5 @@
 from qdrant_client import QdrantClient
-from qdrant_client.models import VectorParams, Distance, PointStruct, PayloadSchemaType
+from qdrant_client.models import VectorParams, Distance, PointStruct, PayloadSchemaType, PointIdsList
 from dotenv import load_dotenv
 import os
 import hashlib
@@ -14,8 +14,7 @@ client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
 COLLECTION_NAME = "obsidian_notes"
 
 def get_path_id(path):
-    """파일 경로를 고유 ID로 변환 (해시 사용)"""
-    return int(hashlib.md5(path.encode('utf-8')).hexdigest()[:8], 16)
+    return int(hashlib.md5(path.encode('utf-8')).hexdigest(), 16) % (2**63)
 
 def ensure_collection_exists(vector_size):
     """컬렉션이 없으면 생성"""
@@ -40,24 +39,27 @@ def ensure_collection_exists(vector_size):
 def get_existing_documents():
     """DB에 있는 모든 문서의 메타데이터 가져오기"""
     try:
-        # 전체 문서 가져오기 (스크롤 방식)
-        result = client.scroll(
-            collection_name=COLLECTION_NAME,
-            limit=10000,
-            with_payload=True,
-            with_vectors=False
-        )
-        
         existing_docs = {}
-        for point in result[0]:
-            path = point.payload.get("path")
-            if path:
-                existing_docs[path] = {
-                    "id": point.id,
-                    "hash": point.payload.get("hash", ""),
-                    "mtime": point.payload.get("mtime", 0)
-                }
-        
+        offset = None
+        while True:
+            result, next_offset = client.scroll(
+                collection_name=COLLECTION_NAME,
+                limit=1000,
+                offset=offset,
+                with_payload=True,
+                with_vectors=False
+            )
+            for point in result:
+                path = point.payload.get("path")
+                if path:
+                    existing_docs[path] = {
+                        "id": point.id,
+                        "hash": point.payload.get("hash", ""),
+                        "mtime": point.payload.get("mtime", 0)
+                    }
+            if next_offset is None:
+                break
+            offset = next_offset
         return existing_docs
     except Exception as e:
         print(f"⚠️  기존 문서 조회 실패 (새 컬렉션일 수 있음): {e}")
@@ -105,7 +107,7 @@ def upload_vectors_incremental(documents, vectors):
         delete_ids = [existing_docs[path]["id"] for path in deleted_paths]
         client.delete(
             collection_name=COLLECTION_NAME,
-            points_selector=delete_ids
+            points_selector=PointIdsList(ids=delete_ids)
         )
         print(f"🗑️  {len(deleted_paths)}개 파일 삭제 완료")
     

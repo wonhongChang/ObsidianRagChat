@@ -1,6 +1,7 @@
 import redis
 import json
 import os
+import re
 from dotenv import load_dotenv
 import hashlib
 
@@ -18,8 +19,10 @@ redis_client = redis.Redis(
     decode_responses=True
 )
 
+def normalize_query(query: str) -> str:
+    return re.sub(r'\s+', ' ', query.strip().lower())
+
 def get_cache_key(prefix, query):
-    """쿼리를 해시하여 캐시 키 생성"""
     query_hash = hashlib.md5(query.encode('utf-8')).hexdigest()
     return f"{prefix}:{query_hash}"
 

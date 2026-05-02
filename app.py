@@ -5,7 +5,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from typing import List, Optional
 from rag.generator import generate_answer_with_rag, generate_followup_answer
-from search.cache import get_cached_rag, set_cached_rag, clear_all_cache, get_cache_stats
+from search.cache import get_cached_rag, set_cached_rag, clear_all_cache, get_cache_stats, normalize_query
 from search.question_detector import is_independent_question, save_query
 import os
 import uvicorn
@@ -66,7 +66,7 @@ async def search(query_request: QueryRequest):
 
         # 2. 캐시 키 생성 - effective_history 기준
         cache_key_parts = [
-            query_request.query,
+            normalize_query(query_request.query),
             str(query_request.top_k),
             str(query_request.ignore_token_limit),
             query_request.model

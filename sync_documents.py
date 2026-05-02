@@ -5,7 +5,7 @@ from datetime import datetime
 from embed.document_loader import load_markdown_files
 from embed.embedder import embed_texts
 from embed.vector_store import get_existing_documents, client, COLLECTION_NAME, get_path_id, ensure_collection_exists
-from qdrant_client.models import PointStruct
+from qdrant_client.models import PointStruct, PointIdsList
 from search.document_index import index_documents_bulk, delete_document
 
 # ============================================
@@ -64,12 +64,16 @@ def sync_all():
         print(f"{'='*70}")
         return
 
+    # 문서 변경 감지 시 캐시 전체 초기화
+    from search.cache import clear_all_cache
+    clear_all_cache()
+
     # 7. 삭제된 파일 처리
     if deleted_paths:
         print(f"\n🗑️  {len(deleted_paths)}개 파일 삭제 중...")
         # Qdrant 삭제
         delete_ids = [existing_docs[path]["id"] for path in deleted_paths]
-        client.delete(collection_name=COLLECTION_NAME, points_selector=delete_ids)
+        client.delete(collection_name=COLLECTION_NAME, points_selector=PointIdsList(ids=delete_ids))
 
         # Elasticsearch 삭제
         for path in deleted_paths:
