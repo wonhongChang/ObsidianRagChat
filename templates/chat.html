@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Obsidian RAG Chat</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            height: calc(100vh - 40px);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .chat-container {
+            flex: 1;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .message {
+            display: flex;
+            gap: 10px;
+            max-width: 80%;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.user {
+            align-self: flex-end;
+            flex-direction: row-reverse;
+        }
+
+        .message.assistant {
+            align-self: flex-start;
+        }
+
+        .message-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            flex-shrink: 0;
+        }
+
+        .message.user .message-avatar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .message.assistant .message-avatar {
+            background: #f0f0f0;
+        }
+
+        .message-content {
+            background: #f8f9fa;
+            padding: 12px 16px;
+            border-radius: 12px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+
+        .message.user .message-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .message-meta {
+            font-size: 0.75rem;
+            color: #999;
+            margin-top: 4px;
+        }
+
+        .sources-container {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f0f4ff;
+            border-radius: 8px;
+            font-size: 0.85rem;
+        }
+
+        .sources-title {
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 8px;
+        }
+
+        .source-item {
+            background: white;
+            padding: 8px 12px;
+            margin: 6px 0;
+            border-radius: 6px;
+            border-left: 3px solid #667eea;
+        }
+
+        .source-filename {
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .source-tags {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            margin-top: 4px;
+        }
+
+        .tag-badge {
+            background: #e0e7ff;
+            color: #667eea;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 0.7rem;
+        }
+
+        .usage-info {
+            margin-top: 8px;
+            padding: 8px;
+            background: rgba(255,255,255,0.5);
+            border-radius: 6px;
+            font-size: 0.75rem;
+            color: #666;
+        }
+
+        .chat-input-container {
+            padding: 15px 20px;
+            border-top: 1px solid #e0e0e0;
+            background: #fafafa;
+        }
+
+        .chat-input-wrapper {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 25px;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.3s;
+            resize: none;
+            min-height: 44px;
+            max-height: 120px;
+            font-family: inherit;
+        }
+
+        .chat-input:focus {
+            border-color: #667eea;
+        }
+
+        .send-button {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            transition: transform 0.2s;
+            flex-shrink: 0;
+        }
+
+        .send-button:hover:not(:disabled) {
+            transform: scale(1.1);
+        }
+
+        .send-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-top: 4px;
+            font-size: 0.85rem;
+            align-items: center;
+        }
+
+        .control-item {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            color: #666;
+            white-space: nowrap;
+            padding: 1px 3px;
+        }
+
+        .control-item label {
+            white-space: nowrap;
+        }
+
+        .control-item input {
+            width: 50px;
+            padding: 1px 4px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .clear-button {
+            padding: 4px 12px;
+            background: #f44336;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+
+        .clear-button:hover {
+            background: #d32f2f;
+        }
+
+        .loading-indicator {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            color: #667eea;
+            font-size: 0.9rem;
+            padding: 10px;
+        }
+
+        .loading-indicator.show {
+            display: flex;
+        }
+
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .welcome-message {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+
+        .welcome-message h2 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .error-message {
+            background: #fee;
+            border: 1px solid #fcc;
+            color: #c33;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧠 Obsidian RAG Chat</h1>
+            <p id="headerText">GPT-5 mini와 대화하며 노트를 탐색하세요 (노트 개수 확인 중...)</p>
+        </div>
+
+        <div class="chat-container">
+            <div class="chat-messages" id="chatMessages">
+                <div class="welcome-message">
+                    <h2>👋 안녕하세요!</h2>
+                    <p>질문을 입력하시면 노트를 검색하여 답변해드립니다.</p>
+                    <p style="font-size: 0.85rem; margin-top: 10px;">
+                        💡 벡터 검색으로 전체 노트를 검색한 후, 가장 관련성 높은 노트만 GPT에 전달합니다.
+                    </p>
+                    <p style="font-size: 0.8rem; margin-top: 8px; color: #667eea;">
+                        ⚡ 기본 5개 노트 검색 (최적 성능) | 50개 이상 선택 시 느려질 수 있습니다
+                    </p>
+                </div>
+            </div>
+
+            <div class="loading-indicator" id="loadingIndicator">
+                <div class="spinner"></div>
+                <span>답변을 생성하는 중...</span>
+            </div>
+
+            <div class="chat-input-container">
+                <div class="chat-input-wrapper">
+                    <textarea 
+                        id="chatInput" 
+                        class="chat-input" 
+                        placeholder="질문을 입력하세요... (예: #painpoint 태그가 있는 문서를 요약해줘)"
+                        rows="1"
+                    ></textarea>
+                    <button class="send-button" id="sendButton" onclick="sendMessage()">
+                        ➤
+                    </button>
+                </div>
+                <div class="controls">
+                    <div class="control-item">
+                        <label>최대 노트 개수:</label>
+                        <span id="topKDisplay" style="font-weight: bold; margin: 0 10px;">5개 (권장 ⚡)</span>
+                        <button onclick="toggleManualMode()" style="padding: 4px 12px; font-size: 0.85em; cursor: pointer; border-radius: 4px; border: 1px solid #667eea; background: white; color: #667eea;">
+                            ✏️ 변경
+                        </button>
+                        <input type="number" id="topK" value="5" min="1" max="359" style="display: none; width: 80px; margin-left: 10px;">
+                        <button id="applyManual" onclick="applyManualMode()" style="display: none; padding: 4px 12px; font-size: 0.85em; cursor: pointer; border-radius: 4px; border: 1px solid #28a745; background: #28a745; color: white; margin-left: 5px;">
+                            ✓ 적용
+                        </button>
+                        <span id="performanceWarning" style="display: none; color: #ff9800; font-size: 0.8em; margin-left: 10px;">⚠️ 50개 이상은 느려질 수 있습니다</span>
+                    </div>
+                    <div class="control-item">
+                        <label>AI 모델:</label>
+                        <select id="modelSelect" style="padding: 4px 8px; border-radius: 4px; border: 1px solid #ddd; cursor: pointer;">
+                            <option value="gpt-4o-mini">GPT-4o-mini (저렴)</option>
+                            <option value="gpt-5-mini">GPT-5-mini (고성능)</option>
+                        </select>
+                    </div>
+                    <div class="control-item">
+                        <label>최대 컨텍스트 토큰:</label>
+                        <span style="color: #666; font-size: 0.9em;">110,000 (GPT-4o-mini 128K 활용)</span>
+                    </div>
+                    <div class="control-item">
+                        <label style="display: flex; align-items: center; cursor: pointer; gap: 4px;">
+                            <input type="checkbox" id="ignoreTokenLimit" style="cursor: pointer;">
+                            <span>최대 토큰 모드 (180,000 토큰)</span>
+                        </label>
+                    </div>
+                    <button class="clear-button" onclick="clearChat()">대화 초기화</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let conversationHistory = [];
+        let totalNotesCount = 359; // 기본값
+        let currentTopK = 5; // 현재 사용 중인 top_k 값 (기본 5개)
+
+        // 페이지 로드 시 전체 노트 개수 가져오기
+        async function loadNotesCount() {
+            try {
+                const response = await fetch('/api/notes/count');
+                const data = await response.json();
+
+                if (data.success) {
+                    totalNotesCount = data.count;
+
+                    // 헤더 텍스트 업데이트
+                    document.getElementById('headerText').textContent =
+                        `GPT-5 mini와 대화하며 노트를 탐색하세요 (전체 ${totalNotesCount}개 노트 검색)`;
+
+                    // input max 값 업데이트
+                    const topKInput = document.getElementById('topK');
+                    topKInput.max = totalNotesCount;
+                    topKInput.value = totalNotesCount;
+                }
+            } catch (error) {
+                console.error('노트 개수 조회 실패:', error);
+            }
+        }
+
+        // 페이지 로드 시 실행
+        loadNotesCount();
+
+        // Auto-resize textarea
+        const chatInput = document.getElementById('chatInput');
+        chatInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+        });
+
+        // Enter to send (Shift+Enter for newline)
+        chatInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        async function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+
+            if (!message) return;
+
+            // currentTopK를 사용 (화면에 표시된 값)
+            const topK = currentTopK;
+            const ignoreTokenLimit = document.getElementById('ignoreTokenLimit').checked;
+            const selectedModel = document.getElementById('modelSelect').value;
+
+            // Add user message to UI
+            addMessage('user', message);
+            input.value = '';
+            input.style.height = 'auto';
+
+            // Add to history
+            conversationHistory.push({
+                role: 'user',
+                content: message
+            });
+
+            // Show loading
+            document.getElementById('loadingIndicator').classList.add('show');
+            document.getElementById('sendButton').disabled = true;
+
+            try {
+                const response = await fetch('/api/search', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        query: message,
+                        top_k: topK,
+                        exclude_zd: false,
+                        ignore_token_limit: ignoreTokenLimit,
+                        model: selectedModel,
+                        history: conversationHistory.slice(0, -1) // 현재 메시지 제외한 히스토리
+                    })
+                });
+
+                const data = await response.json();
+                
+                // 디버깅: API 응답 확인
+                console.log('API Response:', data);
+
+                if (data.success) {
+                    // 답변 확인
+                    if (!data.data || !data.data.answer) {
+                        console.error('답변이 없습니다:', data.data);
+                        addErrorMessage('답변을 받지 못했습니다.');
+                        return;
+                    }
+                    
+                    addMessage('assistant', data.data.answer, data.data.sources, data.data.usage, data.data.elapsed_time);
+                    
+                    // Add to history
+                    conversationHistory.push({
+                        role: 'assistant',
+                        content: data.data.answer
+                    });
+                } else {
+                    addErrorMessage(data.error || '오류가 발생했습니다.');
+                }
+            } catch (error) {
+                addErrorMessage('서버 연결에 실패했습니다: ' + error.message);
+            } finally {
+                document.getElementById('loadingIndicator').classList.remove('show');
+                document.getElementById('sendButton').disabled = false;
+            }
+        }
+
+        function addMessage(role, content, sources = null, usage = null, elapsedTime = null) {
+            const messagesContainer = document.getElementById('chatMessages');
+            
+            // 디버깅: 콘솔에 출력
+            console.log('addMessage called:', { role, content, sources, usage });
+            
+            // Remove welcome message if exists
+            const welcome = messagesContainer.querySelector('.welcome-message');
+            if (welcome) welcome.remove();
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role}`;
+
+            const avatar = document.createElement('div');
+            avatar.className = 'message-avatar';
+            avatar.textContent = role === 'user' ? '👤' : '🤖';
+
+            const contentWrapper = document.createElement('div');
+            
+            const messageContent = document.createElement('div');
+            messageContent.className = 'message-content';
+            
+            // 답변이 없으면 에러 메시지 표시
+            if (!content || content.trim() === '') {
+                messageContent.innerHTML = '<span style="color: red;">❌ 답변을 생성하지 못했습니다.</span>';
+            } else {
+                messageContent.textContent = content;
+            }
+
+            contentWrapper.appendChild(messageContent);
+
+            // Add sources for assistant messages
+            if (role === 'assistant' && sources && sources.length > 0) {
+                const sourcesDiv = document.createElement('div');
+                sourcesDiv.className = 'sources-container';
+                const sourcesId = `sources-${Date.now()}-${Math.random()}`;
+                sourcesDiv.innerHTML = `
+                    <div class="sources-title" onclick="toggleSources('${sourcesId}')" style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                        <span id="arrow-${sourcesId}" style="transition: transform 0.3s;">▼</span>
+                        <span>📚 참조한 노트 (${sources.length}개)</span>
+                    </div>
+                    <div id="${sourcesId}" style="display: none; margin-top: 8px;">
+                        ${sources.map(source => `
+                            <div class="source-item">
+                                <div class="source-filename">📄 ${escapeHtml(source.filename)} (유사도: ${(source.score * 100).toFixed(1)}%)</div>
+                                ${source.tags && source.tags.length > 0 ? `
+                                    <div class="source-tags">
+                                        ${source.tags.map(tag => `<span class="tag-badge">#${escapeHtml(tag)}</span>`).join('')}
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+                contentWrapper.appendChild(sourcesDiv);
+            }
+
+            // Add usage info
+            if (role === 'assistant' && usage) {
+                const usageDiv = document.createElement('div');
+                usageDiv.className = 'usage-info';
+
+                // 캐시된 응답 확인 (토큰 사용량이 0이면 캐시)
+                const isCached = usage.total_tokens === 0;
+
+                if (isCached) {
+                    usageDiv.innerHTML = `
+                        ⚡ 캐시된 응답 (API 호출 없음)
+                        ⏱️ ${elapsedTime ? elapsedTime.toFixed(3) : 'N/A'}초
+                    `;
+                    usageDiv.style.background = 'rgba(76, 175, 80, 0.1)';  // 녹색 배경
+                    usageDiv.style.color = '#2e7d32';
+                } else {
+                    usageDiv.innerHTML = `
+                        💰 ${usage.total_tokens.toLocaleString()} 토큰 사용
+                        (Prompt: ${usage.prompt_tokens.toLocaleString()}, Completion: ${usage.completion_tokens.toLocaleString()})
+                        ⏱️ ${elapsedTime ? elapsedTime.toFixed(2) : 'N/A'}초
+                    `;
+                }
+                contentWrapper.appendChild(usageDiv);
+            }
+
+            messageDiv.appendChild(avatar);
+            messageDiv.appendChild(contentWrapper);
+
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function addErrorMessage(error) {
+            const messagesContainer = document.getElementById('chatMessages');
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.textContent = '❌ ' + error;
+            messagesContainer.appendChild(errorDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function clearChat() {
+            if (confirm('대화 내역을 모두 삭제하시겠습니까?')) {
+                conversationHistory = [];
+                document.getElementById('chatMessages').innerHTML = `
+                    <div class="welcome-message">
+                        <h2>👋 안녕하세요!</h2>
+                        <p>질문을 입력하시면 노트를 검색하여 답변해드립니다.</p>
+                        <p style="font-size: 0.85rem; margin-top: 10px;">
+                            💡 벡터 검색으로 전체 노트를 검색한 후, 가장 관련성 높은 노트만 GPT에 전달합니다.
+                        </p>
+                        <p style="font-size: 0.8rem; margin-top: 8px; color: #667eea;">
+                            ⚡ 기본 5개 노트 검색 (최적 성능) | 50개 이상 선택 시 느려질 수 있습니다
+                        </p>
+                    </div>
+                `;
+            }
+        }
+
+        function toggleManualMode() {
+            const topKInput = document.getElementById('topK');
+            const topKDisplay = document.getElementById('topKDisplay');
+            const performanceWarning = document.getElementById('performanceWarning');
+            const applyButton = document.getElementById('applyManual');
+            const toggleButton = event.target;
+
+            if (topKInput.style.display === 'none') {
+                // 입력 모드로 전환
+                topKInput.value = currentTopK; // 현재 값으로 초기화
+                topKInput.style.display = 'inline-block';
+                applyButton.style.display = 'inline-block';
+                topKDisplay.style.display = 'none';
+                performanceWarning.style.display = 'none';
+                toggleButton.textContent = '🔙 취소';
+                toggleButton.style.background = '#999';
+                toggleButton.style.color = 'white';
+            } else {
+                // 입력 취소
+                topKInput.style.display = 'none';
+                applyButton.style.display = 'none';
+                topKDisplay.style.display = 'inline';
+                toggleButton.textContent = '✏️ 변경';
+                toggleButton.style.background = 'white';
+                toggleButton.style.color = '#667eea';
+
+                // 경고는 현재값이 50 이상일 때만 표시
+                if (currentTopK >= 50) {
+                    performanceWarning.style.display = 'inline';
+                } else {
+                    performanceWarning.style.display = 'none';
+                }
+            }
+        }
+
+        function applyManualMode() {
+            const topKInput = document.getElementById('topK');
+            const topKDisplay = document.getElementById('topKDisplay');
+            const performanceWarning = document.getElementById('performanceWarning');
+            const value = parseInt(topKInput.value);
+
+            if (value >= 1 && value <= totalNotesCount) {
+                currentTopK = value; // 전역 변수 업데이트
+
+                // 표시 텍스트 생성
+                let displayText = `${value}개`;
+                if (value <= 5) {
+                    displayText += ' (권장 ⚡)';
+                } else if (value <= 20) {
+                    displayText += ' (보통)';
+                } else if (value <= 50) {
+                    displayText += ' (느림 ⏳)';
+                } else {
+                    displayText += ' (매우 느림 🐌)';
+                }
+
+                topKDisplay.textContent = displayText;
+                topKDisplay.style.display = 'inline';
+                topKInput.style.display = 'none';
+                document.getElementById('applyManual').style.display = 'none';
+
+                // 50개 이상이면 경고 표시
+                if (value >= 50) {
+                    performanceWarning.style.display = 'inline';
+                } else {
+                    performanceWarning.style.display = 'none';
+                }
+
+                const toggleButton = document.querySelector('[onclick="toggleManualMode()"]');
+                toggleButton.textContent = '✏️ 변경';
+                toggleButton.style.background = 'white';
+                toggleButton.style.color = '#667eea';
+            } else {
+                alert(`1에서 ${totalNotesCount} 사이의 값을 입력해주세요.`);
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function toggleSources(sourcesId) {
+            const sourcesContent = document.getElementById(sourcesId);
+            const arrow = document.getElementById(`arrow-${sourcesId}`);
+            
+            if (sourcesContent.style.display === 'none') {
+                sourcesContent.style.display = 'block';
+                arrow.style.transform = 'rotate(180deg)';
+            } else {
+                sourcesContent.style.display = 'none';
+                arrow.style.transform = 'rotate(0deg)';
+            }
+        }
+    </script>
+</body>
+</html>

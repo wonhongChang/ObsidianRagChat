@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# Environment variables
+.env
+
+# Log files
+*.log
+
+# Obsidian notes path (personal data)
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+check_duplicates.py
+*.tmp
+
+# Virtual environment
+.venv/
+
+# Data and test results
+data/
+result*.json
+test_*.json
+
+# Internal documents
+docs/

@@ -1,0 +1,12 @@
+openai
+qdrant-client
+tiktoken
+python-dotenv
+fastapi
+uvicorn
+jinja2
+python-multipart
+elasticsearch==8.18.0
+redis==5.0.1
+pytest==7.4.3
+pytest-mock==3.12.0

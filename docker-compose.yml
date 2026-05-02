@@ -1,0 +1,135 @@
+services:
+  # ============================================
+  # FastAPI 웹 서버
+  # ============================================
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    container_name: obsidian-rag-web
+    ports:
+      - "8001:8000"  # 외부:내부 (8000 포트 충돌 회피)
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - QDRANT_URL=${QDRANT_URL}
+      - QDRANT_API_KEY=${QDRANT_API_KEY}
+      - VAULT_PATH=/vault
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - ELASTICSEARCH_HOST=http://elasticsearch:9200
+    volumes:
+      - ${OBSIDIAN_VAULT_PATH}:/vault:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - obsidian-network
+
+  # ============================================
+  # Batch 동기화 서비스
+  # ============================================
+  sync:
+    build:
+      context: .
+      dockerfile: Dockerfile.sync
+    container_name: obsidian-rag-sync
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - QDRANT_URL=${QDRANT_URL}
+      - QDRANT_API_KEY=${QDRANT_API_KEY}
+      - VAULT_PATH=/vault
+      - ELASTICSEARCH_HOST=http://elasticsearch:9200
+      - INTERVAL_SECONDS=600
+    volumes:
+      - ${OBSIDIAN_VAULT_PATH}:/vault:ro
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - obsidian-network
+
+  # ============================================
+  # Elasticsearch (8.18.0)
+  # ============================================
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.18.0
+    container_name: obsidian-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - xpack.security.enabled=false
+      - xpack.security.enrollment.enabled=false
+    ports:
+      - "9201:9200"  # 외부:내부 (9200 포트 충돌 회피)
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - obsidian-network
+
+  # ============================================
+  # Redis (7.2-alpine)
+  # ============================================
+  redis:
+    image: redis:7.2-alpine
+    container_name: obsidian-redis
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+    networks:
+      - obsidian-network
+
+# ============================================
+# 볼륨 정의
+# ============================================
+volumes:
+  elasticsearch-data:
+    driver: local
+  redis-data:
+    driver: local
+
+# ============================================
+# 네트워크 정의
+# ============================================
+networks:
+  obsidian-network:
+    name: obsidian-rag-network
+    driver: bridge
