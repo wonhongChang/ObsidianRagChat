@@ -101,9 +101,9 @@ def search_relevant_notes(query: str, limit: int = 5, filter_tags: list = None):
             # 오류 시 필터 없이 진행
             filtered_paths = None
 
-    # Qdrant 벡터 검색
+    # Qdrant 벡터 검색 (청크 환경에서 충분한 후보 확보를 위해 limit * 3으로 요청)
+    chunk_limit = limit * 3
     if filtered_paths:
-        # ES에서 필터링된 path만 Qdrant에서 검색
         from qdrant_client.models import Filter, FieldCondition, MatchAny
 
         results = client.search(
@@ -117,20 +117,19 @@ def search_relevant_notes(query: str, limit: int = 5, filter_tags: list = None):
                     )
                 ]
             ),
-            limit=limit
+            limit=chunk_limit
         )
-        logger.info(f"   → Qdrant path 필터 검색 결과: {len(results)}개")
+        logger.info(f"   → Qdrant path 필터 검색 결과: {len(results)}개 청크")
     else:
-        # 전체 검색
         results = client.search(
             collection_name=COLLECTION_NAME,
             query_vector=query_vector,
-            limit=limit
+            limit=chunk_limit
         )
-    
-    # 경로 기준 중복 제거 (청크 환경: 같은 파일의 여러 청크 중 최고 점수만 유지)
+
+    # 경로 기준 중복 제거: 파일당 최고 점수 청크만 유지 후 limit개 반환
     if results:
-        logger.info(f"🔍 Qdrant 원본 검색 결과: {len(results)}개")
+        logger.info(f"🔍 Qdrant 원본 검색 결과: {len(results)}개 청크")
 
         seen_paths = {}
         for r in results:
@@ -138,10 +137,9 @@ def search_relevant_notes(query: str, limit: int = 5, filter_tags: list = None):
             if path not in seen_paths or r.score > seen_paths[path].score:
                 seen_paths[path] = r
 
-        unique_results = sorted(seen_paths.values(), key=lambda x: x.score, reverse=True)
+        unique_results = sorted(seen_paths.values(), key=lambda x: x.score, reverse=True)[:limit]
 
-        if len(unique_results) < len(results):
-            logger.info(f"🔀 경로 기준 중복 제거: {len(results)}개 → {len(unique_results)}개")
+        logger.info(f"🔀 파일 단위 병합: {len(results)}개 청크 → {len(unique_results)}개 파일")
 
         return unique_results
 
