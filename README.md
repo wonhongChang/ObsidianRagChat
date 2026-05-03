@@ -23,14 +23,16 @@ Obsidian 노트를 RAG 시스템으로 변환해 GPT와 대화하는 웹 인터�
     ├─ Follow-up → GPT standalone rewrite → 벡터 검색
     ├─ 태그 추출 → Elasticsearch 경로 필터
     ├─ Qdrant 청크 벡터 검색 (limit × 3 → 파일 단위 병합 → top-k)
+    ├─ 파일명 키워드 매칭 → 스코어 부스트 (파일명 일치 노트 상위 고정)
     ├─ parent_text 기반 컨텍스트 구성 (max 110K 토큰)
-    └─ GPT-4o-mini / GPT-5-mini 답변 생성
+    └─ GPT 답변 생성 → SSE 스트리밍 (첫 토큰 ~1초 이내)
     │
     ▼
 [sync_documents.py] 10분 주기
     ├─ MD5 해시 기반 변경 감지
     ├─ 헤더 기반 청킹 (512 토큰, 50 overlap)
-    ├─ Qdrant 청크 upsert
+    ├─ "파일명: {name}\n{text}" 형식으로 임베딩 (파일명 의미 반영)
+    ├─ Qdrant 100청크 배치 upsert
     └─ Elasticsearch 파일 단위 bulk index
 ```
 
@@ -44,8 +46,8 @@ Obsidian 노트를 RAG 시스템으로 변환해 GPT와 대화하는 웹 인터�
 | Vector DB | Qdrant Cloud |
 | Full-text Search | Elasticsearch 8.18 |
 | Cache | Redis 7.2 (TTL 30분) |
-| LLM | GPT-4o-mini / GPT-5-mini |
-| Embedding | text-embedding-3-small (1536dim) |
+| LLM | GPT-4o-mini / GPT-5-mini (설정 가능) |
+| Embedding | text-embedding-3-small (1536dim, 파일명 prefix 포함) |
 | Container | Docker + Docker Compose |
 
 ---
@@ -125,7 +127,8 @@ http://localhost:8001
 
 | Method | Endpoint | 설명 |
 |--------|----------|------|
-| `POST` | `/api/search` | RAG 검색 (메인) |
+| `POST` | `/api/search` | RAG 검색 (전체 응답 반환) |
+| `POST` | `/api/search/stream` | RAG 검색 SSE 스트리밍 |
 | `DELETE` | `/api/cache` | 캐시 전체 삭제 |
 | `GET` | `/api/cache/stats` | 캐시 통계 |
 | `GET` | `/api/notes/count` | 전체 노트 수 |
@@ -192,7 +195,7 @@ docker-compose exec web python scripts/clear_cache.py
 curl -X DELETE http://localhost:8001/api/cache
 
 # Qdrant 초기화 (재동기화 필요 시)
-docker-compose exec web python scripts/clear_qdrant.py
+docker-compose run --rm sync python -c "from embed.vector_store import client, COLLECTION_NAME; client.delete_collection(COLLECTION_NAME)"
 docker-compose restart sync
 
 # ES 인덱스 재생성 (lowercase_normalizer 적용)
