@@ -21,14 +21,12 @@ def embed_texts(texts):
         processed_batch = []
         for text in batch:
             if isinstance(text, str):
-                # 빈 문자열 제외
                 if text.strip():
-                    # 최대 8000자로 제한 (토큰 한계 고려)
-                    processed_batch.append(text.strip()[:8000])
+                    processed_batch.append(text.strip())
             else:
                 text_str = str(text).strip()
                 if text_str:
-                    processed_batch.append(text_str[:8000])
+                    processed_batch.append(text_str)
         
         if not processed_batch:
             print(f"배치 {i//batch_size + 1}: 처리할 텍스트가 없습니다.")

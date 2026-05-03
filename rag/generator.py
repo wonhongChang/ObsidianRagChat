@@ -128,24 +128,23 @@ def search_relevant_notes(query: str, limit: int = 5, filter_tags: list = None):
             limit=limit
         )
     
-    # 중복 체크 및 제거
+    # 경로 기준 중복 제거 (청크 환경: 같은 파일의 여러 청크 중 최고 점수만 유지)
     if results:
         logger.info(f"🔍 Qdrant 원본 검색 결과: {len(results)}개")
-        logger.info(f"🔍 검색 결과 ID들: {[r.id for r in results[:5]]}")  # 처음 5개만
-        
-        # 중복 제거
-        seen_ids = set()
-        unique_results = []
+
+        seen_paths = {}
         for r in results:
-            if r.id not in seen_ids:
-                seen_ids.add(r.id)
-                unique_results.append(r)
-        
+            path = r.payload.get("path", str(r.id))
+            if path not in seen_paths or r.score > seen_paths[path].score:
+                seen_paths[path] = r
+
+        unique_results = sorted(seen_paths.values(), key=lambda x: x.score, reverse=True)
+
         if len(unique_results) < len(results):
-            logger.warning(f"⚠️  Qdrant 검색 결과에서 중복 제거: {len(results)}개 → {len(unique_results)}개")
-        
+            logger.info(f"🔀 경로 기준 중복 제거: {len(results)}개 → {len(unique_results)}개")
+
         return unique_results
-    
+
     return results
 
 def generate_answer_with_rag(query: str, top_k: int = 359, exclude_zd: bool = False, ignore_token_limit: bool = False, model: str = "gpt-4o-mini"):
@@ -235,7 +234,7 @@ def generate_answer_with_rag(query: str, top_k: int = 359, exclude_zd: bool = Fa
             
         filename = result.payload.get('filename', 'Unknown')
         tags = result.payload.get('tags', [])
-        note_text = result.payload['text']
+        note_text = result.payload.get('parent_text') or result.payload.get('text', '')
         
         # 노트 헤더 구성
         note_header = f"[노트 {i}: {filename}]\n태그: {', '.join(['#' + t for t in tags]) if tags else '없음'}\n"
@@ -264,7 +263,8 @@ def generate_answer_with_rag(query: str, top_k: int = 359, exclude_zd: bool = Fa
         sources.append({
             'id': i,
             'filename': filename,
-            'text': result.payload['text'][:500],  # 미리보기는 처음 500자
+            'text': (result.payload.get('chunk_text') or result.payload.get('text', ''))[:500],
+            'section': result.payload.get('section', ''),
             'score': float(result.score),
             'tags': tags
         })
@@ -587,7 +587,7 @@ def generate_followup_answer(query: str, history: list, top_k: int = 359, exclud
                 
             filename = result.payload.get('filename', 'Unknown')
             tags = result.payload.get('tags', [])
-            note_text = result.payload['text']
+            note_text = result.payload.get('parent_text') or result.payload.get('text', '')
             
             # 노트 헤더 구성
             note_header = f"[노트 {i}: {filename}]\n태그: {', '.join(['#' + t for t in tags]) if tags else '없음'}\n"

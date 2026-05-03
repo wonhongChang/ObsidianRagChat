@@ -37,7 +37,9 @@ def ensure_collection_exists(vector_size):
         print("✅ 태그 필드 인덱스 생성 완료")
 
 def get_existing_documents():
-    """DB에 있는 모든 문서의 메타데이터 가져오기"""
+    """Qdrant에 있는 모든 청크를 path 기준으로 집계하여 반환.
+    Returns: {path: {"chunk_ids": [id, ...], "hash": str, "mtime": float}}
+    """
     try:
         existing_docs = {}
         offset = None
@@ -52,11 +54,13 @@ def get_existing_documents():
             for point in result:
                 path = point.payload.get("path")
                 if path:
-                    existing_docs[path] = {
-                        "id": point.id,
-                        "hash": point.payload.get("hash", ""),
-                        "mtime": point.payload.get("mtime", 0)
-                    }
+                    if path not in existing_docs:
+                        existing_docs[path] = {
+                            "chunk_ids": [],
+                            "hash": point.payload.get("hash", ""),
+                            "mtime": point.payload.get("mtime", 0)
+                        }
+                    existing_docs[path]["chunk_ids"].append(point.id)
             if next_offset is None:
                 break
             offset = next_offset

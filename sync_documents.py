@@ -4,7 +4,8 @@ import time
 from datetime import datetime
 from embed.document_loader import load_markdown_files
 from embed.embedder import embed_texts
-from embed.vector_store import get_existing_documents, client, COLLECTION_NAME, get_path_id, ensure_collection_exists
+from embed.vector_store import get_existing_documents, client, COLLECTION_NAME, ensure_collection_exists
+from embed.chunker import chunk_document
 from qdrant_client.models import PointStruct, PointIdsList
 from search.document_index import index_documents_bulk, delete_document
 
@@ -68,61 +69,72 @@ def sync_all():
     from search.cache import clear_all_cache
     clear_all_cache()
 
-    # 7. 삭제된 파일 처리
-    if deleted_paths:
-        print(f"\n🗑️  {len(deleted_paths)}개 파일 삭제 중...")
-        # Qdrant 삭제
-        delete_ids = [existing_docs[path]["id"] for path in deleted_paths]
-        client.delete(collection_name=COLLECTION_NAME, points_selector=PointIdsList(ids=delete_ids))
+    # 7. 삭제된 파일 + 수정된 파일의 기존 청크 삭제
+    paths_to_delete_chunks = deleted_paths | {doc["path"] for doc in updated_files}
+    if paths_to_delete_chunks:
+        delete_ids = []
+        for path in paths_to_delete_chunks:
+            if path in existing_docs:
+                delete_ids.extend(existing_docs[path]["chunk_ids"])
+        if delete_ids:
+            client.delete(collection_name=COLLECTION_NAME, points_selector=PointIdsList(ids=delete_ids))
+            print(f"\n🗑️  {len(delete_ids)}개 청크 삭제 완료")
 
-        # Elasticsearch 삭제
         for path in deleted_paths:
             delete_document(path)
-
-        print(f"   ✅ 삭제 완료")
 
     # 8. 새 파일 + 수정된 파일 처리
     to_process = new_files + updated_files
 
     if to_process:
         print(f"\n⚡ {len(to_process)}개 파일 처리 중...")
-
-        # 파일 목록 출력
         for doc in to_process:
             file_type = "🆕 NEW" if doc in new_files else "🔄 UPDATE"
             print(f"   {file_type}: {doc['filename']}")
 
-        # 임베딩 생성
+        # 청크 분할
+        print(f"\n   ✂️  청크 분할 중...")
+        all_chunks = []
+        for doc in to_process:
+            all_chunks.extend(chunk_document(doc))
+        print(f"   → {len(to_process)}개 파일 → {len(all_chunks)}개 청크")
+
+        # 임베딩 생성 (청크 텍스트 기준)
         print(f"\n   🧠 임베딩 생성 중...")
-        texts = [doc["text"] for doc in to_process]
-        vectors = embed_texts(texts)
+        vectors = embed_texts([c["chunk_text"] for c in all_chunks])
 
         # Qdrant 업로드
         print(f"   ⬆️  Qdrant 업로드 중...")
         ensure_collection_exists(len(vectors[0]))
 
         points = []
-        for i, doc in enumerate(to_process):
-            point_id = get_path_id(doc["path"])
+        for chunk, vector in zip(all_chunks, vectors):
             points.append(
                 PointStruct(
-                    id=point_id,
-                    vector=vectors[i],
+                    id=chunk["point_id"],
+                    vector=vector,
                     payload={
-                        "path": doc["path"],        # ID 역할 (ES 조회용)
-                        "filename": doc["filename"]  # 결과 표시용
+                        "path": chunk["path"],
+                        "filename": chunk["filename"],
+                        "tags": chunk["tags"],
+                        "mtime": chunk["mtime"],
+                        "hash": chunk["hash"],
+                        "section": chunk["section"],
+                        "chunk_index": chunk["chunk_index"],
+                        "chunk_text": chunk["chunk_text"],
+                        "parent_text": chunk["parent_text"],
                     }
                 )
             )
 
         client.upsert(collection_name=COLLECTION_NAME, points=points)
-        print(f"   ✅ Qdrant 업로드 완료")
+        print(f"   ✅ Qdrant 업로드 완료 ({len(points)}개 청크)")
 
-        # Elasticsearch 인덱싱
+        # Elasticsearch 인덱싱 (파일 단위 전체 텍스트)
         print(f"   📇 Elasticsearch 인덱싱 중...")
         index_documents_bulk(to_process)
 
-        print(f"\n✅ {len(to_process)}개 파일 처리 완료")
+        print(f"\n✅ {len(to_process)}개 파일 ({len(all_chunks)}개 청크) 처리 완료")
 
     print(f"{'='*70}")
 
