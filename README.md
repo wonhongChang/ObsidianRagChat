@@ -16,14 +16,14 @@ Obsidian 노트를 RAG(Retrieval-Augmented Generation) 시스템으로 변환하
 ### 🎯 핵심 기능
 - **🔍 하이브리드 검색**: Elasticsearch + Qdrant 벡터 DB로 정확도와 속도 향상
 - **⚡ 스마트 캐싱**: Redis 기반 응답 캐싱으로 ~20배 속도 향상 (비용 100% 절감)
-- **🤖 지능형 질문 감지**: 규칙 기반 + GPT-4o-mini로 독립/Follow-up 질문 자동 구분 (90% GPT 호출 제거)
+- **🤖 지능형 질문 감지**: 규칙 기반으로 독립/Follow-up 질문 자동 구분 (GPT 호출 0회, 즉시 판단)
 - **🏷️ 태그 필터링**: `#Subway`, `#RagChat` 등 태그 기반 문서 검색
 - **💬 대화 맥락 유지**: 이전 대화 히스토리를 활용한 자연스러운 대화
 - **🔄 실시간 동기화**: 10분마다 Obsidian vault 변경사항 자동 감지 (증분 업데이트)
 
 ### 💡 최적화 (2025-11-11 적용)
 - **📊 토큰 카운팅 캐싱**: LRU 캐시로 중복 인코딩 제거 (-70~85% 시간)
-- **🎯 규칙 기반 질문 감지**: 90% GPT API 호출 제거 (-0.5~2초)
+- **🎯 규칙 기반 질문 감지**: GPT API 호출 100% 제거 (-0.5~2초, 오답 방지)
 - **🚀 동적 ES 크기 조정**: 필요한 만큼만 요청 (-60% 검색 시간)
 - **⚡ 기본 top_k=5**: 불필요한 노트 제거 (-27.6% 응답 시간, -69% 토큰)
 - **💰 비용 투명성**: 실시간 토큰 사용량 및 예상 비용 표시
@@ -137,6 +137,10 @@ REDIS_PORT=6379
 
 # Obsidian Vault
 OBSIDIAN_VAULT_PATH=/mnt/vault  # Docker 내부 경로
+
+# 선택적 설정
+CACHE_TTL=1800          # Redis 캐시 TTL (초, 기본 30분)
+INTERVAL_SECONDS=600    # 동기화 간격 (초, 기본 10분)
 ```
 
 ### 3️⃣ Obsidian Vault 경로 설정
@@ -268,9 +272,10 @@ ObsidianRagChat/
 ├── 📄 sync_documents.py               # 증분 동기화 (10분, Hash 기반)
 │
 ├── 📂 embed/                          # 임베딩 & 벡터 DB
-│   ├── embedder.py                    # OpenAI 임베딩
+│   ├── embedder.py                    # OpenAI 임베딩 (배치 인덱스 안전 처리)
+│   ├── chunker.py                     # 헤더 기반 청킹 + 슬라이딩 윈도우
 │   ├── document_loader.py             # 마크다운 로더
-│   └── vector_store.py                # Qdrant 클라이언트 (증분 업데이트)
+│   └── vector_store.py                # Qdrant 클라이언트 (청크 단위 증분 업데이트)
 │
 ├── 📂 rag/                            # RAG 엔진
 │   └── generator.py                   # 검색 + GPT 생성 (최적화됨)
@@ -278,7 +283,7 @@ ObsidianRagChat/
 ├── 📂 search/                         # 검색 & 캐싱
 │   ├── document_index.py              # Elasticsearch 클라이언트
 │   ├── cache.py                       # Redis 캐싱 (독립 질문 감지)
-│   └── question_detector.py           # 질문 감지 (규칙 + GPT)
+│   └── question_detector.py           # 질문 감지 (규칙 기반 전용)
 │
 ├── 📂 scripts/                        # 유틸리티
 │   ├── clear_cache.py                 # 캐시 삭제
@@ -360,19 +365,17 @@ cache_key = f"{query}|{top_k}|{ignore_token_limit}|{model}|history:{hash}"
 
 **독립 질문 감지** (`search/question_detector.py`):
 ```python
-# 규칙 기반 (90% GPT 호출 제거)
-if query.startswith('#'):           # #태그 시작 → 독립
+# 규칙 기반 전용 (GPT 호출 없음 — 안정성·비용·오답 방지)
+if query.startswith('#'):            # #태그 시작 → 독립
     return True
-if '파일명.md' in query:            # 파일명 언급 → 독립
+if '파일명.md' in query:             # 파일명 언급 → 독립
     return True
-if query.startswith(('그것', '그')): # 대명사 시작 → Follow-up
+if re.match(r'^\s*(그|그것|이것|...)', query):  # 대명사 시작 → Follow-up
     return False
-if len(words) >= 15:                 # 긴 질문 → 독립
+if len(words) >= 15:                  # 긴 질문 → 독립
     return True
 # ... 7개 규칙
-
-# GPT 호출 (규칙으로 판단 안 될 때만)
-return gpt_detect(query, history)
+return False  # 미결정 시 Follow-up (오답 방지 우선)
 ```
 
 **TTL 설정** (`search/cache.py`):
@@ -403,6 +406,20 @@ max_context_tokens = 110000
 if ignore_token_limit:
     max_context_tokens = 180000
 ```
+
+### 청킹 전략
+
+`embed/chunker.py`:
+```python
+MAX_CHUNK_TOKENS = 512   # text-embedding-3-small 최적 범위
+OVERLAP_TOKENS   = 50    # 청크 경계 문장 단절 방지
+MIN_CHUNK_TOKENS = 30    # 제목만 있는 빈 청크 제외
+```
+
+- **헤더 기반 분할**: `## 섹션` 단위로 청크 → 의미 단위 유지
+- **슬라이딩 윈도우 폴백**: 섹션이 너무 크면 512 토큰 단위로 재분할
+- **파일 단위 검색 병합**: `limit * 3` 청크 검색 → 경로별 최고 점수만 유지 → 상위 `limit`개 반환
+- **parent_text**: 청크 검색 후 컨텍스트 구성 시 4000자 부모 문서 사용 (Small-to-Big)
 
 ### 토큰 카운팅 최적화
 
@@ -510,6 +527,10 @@ curl http://localhost:9201/obsidian_notes/_search?q=tags:Subway
 
 # 캐시 초기화 (이전 결과 제거)
 curl -X DELETE http://localhost:8001/api/cache
+
+# ES 인덱스 재생성 (lowercase_normalizer 적용 위해 필요)
+curl -X DELETE http://localhost:9201/obsidian_notes
+docker-compose restart sync  # 재인덱싱 시작
 ```
 
 ### 응답이 느림

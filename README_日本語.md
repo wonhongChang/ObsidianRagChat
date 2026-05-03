@@ -16,14 +16,14 @@ Obsidianノートを RAG(Retrieval-Augmented Generation) システムに変換�
 ### 🎯 コア機能
 - **🔍 ハイブリッド検索**: Elasticsearch + Qdrant ベクトルDBで精度と速度を向上
 - **⚡ スマートキャッシング**: Redisベースの応答キャッシュで~20倍の高速化（コスト100%削減）
-- **🤖 知能的な質問検出**: ルールベース + GPT-4o-miniで独立/フォローアップ質問を自動分類（90% GPT呼び出し削減）
+- **🤖 知能的な質問検出**: ルールベースのみで独立/フォローアップ質問を自動分類（GPT呼び出し0回、即時判断）
 - **🏷️ タグフィルタリング**: `#Subway`、`#RagChat`などのタグベース文書検索
 - **💬 会話コンテキスト維持**: 過去の会話履歴を活用した自然な対話
 - **🔄 リアルタイム同期**: 10分ごとにObsidian vaultの変更を自動検出（増分更新）
 
 ### 💡 最適化（2025-11-11適用）
 - **📊 トークンカウントキャッシング**: LRUキャッシュで重複エンコーディング削除（-70~85%時間）
-- **🎯 ルールベース質問検出**: 90% GPT API呼び出し削減（-0.5~2秒）
+- **🎯 ルールベース質問検出**: GPT API呼び出し100%削除（-0.5~2秒、誤答防止）
 - **🚀 動的ESサイズ調整**: 必要な分だけリクエスト（-60%検索時間）
 - **⚡ デフォルトtop_k=5**: 不要なノート削除（-27.6%応答時間、-69%トークン）
 - **💰 コストの透明性**: リアルタイムでトークン使用量と推定コストを表示
@@ -137,6 +137,10 @@ REDIS_PORT=6379
 
 # Obsidian Vault
 OBSIDIAN_VAULT_PATH=/mnt/vault  # Docker内部パス
+
+# オプション設定
+CACHE_TTL=1800          # Redis キャッシュ TTL (秒、デフォルト30分)
+INTERVAL_SECONDS=600    # 同期間隔 (秒、デフォルト10分)
 ```
 
 ### 3️⃣ Obsidian Vaultパスの設定
@@ -268,9 +272,10 @@ ObsidianRagChat/
 ├── 📄 sync_documents.py               # 増分同期（10分、Hash-ベース）
 │
 ├── 📂 embed/                          # 埋め込み & ベクトルDB
-│   ├── embedder.py                    # OpenAI埋め込み
+│   ├── embedder.py                    # OpenAI埋め込み（バッチインデックス安全処理）
+│   ├── chunker.py                     # ヘッダーベースチャンキング + スライディングウィンドウ
 │   ├── document_loader.py             # マークダウンローダー
-│   └── vector_store.py                # Qdrantクライアント（増分更新）
+│   └── vector_store.py                # Qdrantクライアント（チャンク単位増分更新）
 │
 ├── 📂 rag/                            # RAGエンジン
 │   └── generator.py                   # 検索 + GPT生成（最適化済み）
@@ -278,7 +283,7 @@ ObsidianRagChat/
 ├── 📂 search/                         # 検索 & キャッシング
 │   ├── document_index.py              # Elasticsearchクライアント
 │   ├── cache.py                       # Redisキャッシング（独立質問検出）
-│   └── question_detector.py           # 質問検出（ルール + GPT）
+│   └── question_detector.py           # 質問検出（ルールベース専用）
 │
 ├── 📂 scripts/                        # ユーティリティ
 │   ├── clear_cache.py                 # キャッシュ削除
