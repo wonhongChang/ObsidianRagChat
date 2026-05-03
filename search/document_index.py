@@ -16,6 +16,16 @@ def ensure_index_exists():
         es.indices.create(
             index=INDEX_NAME,
             body={
+                "settings": {
+                    "analysis": {
+                        "normalizer": {
+                            "lowercase_normalizer": {
+                                "type": "custom",
+                                "filter": ["lowercase"]
+                            }
+                        }
+                    }
+                },
                 "mappings": {
                     "properties": {
                         "path": {"type": "keyword"},
@@ -24,7 +34,10 @@ def ensure_index_exists():
                             "type": "text",
                             "analyzer": "standard"
                         },
-                        "tags": {"type": "keyword"},
+                        "tags": {
+                            "type": "keyword",
+                            "normalizer": "lowercase_normalizer"
+                        },
                         "mtime": {"type": "date"},
                         "hash": {"type": "keyword"}
                     }

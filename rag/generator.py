@@ -57,13 +57,8 @@ def search_relevant_notes(query: str, limit: int = 5, filter_tags: list = None):
     if filter_tags:
         logger.info(f"🔍 태그 필터링: {filter_tags}")
 
-        # 대소문자 구분 없이 검색하기 위해 소문자/대문자 버전 모두 추가
-        tag_variants = []
-        for tag in filter_tags:
-            tag_variants.append(tag)
-            tag_variants.append(tag.lower())
-            tag_variants.append(tag.capitalize())
-        tag_variants = list(set(tag_variants))  # 중복 제거
+        # ES lowercase_normalizer가 저장 시 소문자로 정규화하므로 쿼리도 소문자로만 전달
+        tag_variants = list({tag.lower() for tag in filter_tags})
 
         es_query = {
             "bool": {
@@ -614,7 +609,8 @@ def generate_followup_answer(query: str, history: list, top_k: int = 359, exclud
             sources.append({
                 'id': i,
                 'filename': filename,
-                'text': result.payload['text'][:500],
+                'text': (result.payload.get('chunk_text') or result.payload.get('text', ''))[:500],
+                'section': result.payload.get('section', ''),
                 'score': float(result.score),
                 'tags': tags
             })
