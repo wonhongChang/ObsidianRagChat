@@ -101,9 +101,9 @@ def search_relevant_notes(query: str, limit: int = 5, filter_tags: list = None):
     if filtered_paths:
         from qdrant_client.models import Filter, FieldCondition, MatchAny
 
-        results = client.search(
+        results = client.query_points(
             collection_name=COLLECTION_NAME,
-            query_vector=query_vector,
+            query=query_vector,
             query_filter=Filter(
                 must=[
                     FieldCondition(
@@ -113,32 +113,90 @@ def search_relevant_notes(query: str, limit: int = 5, filter_tags: list = None):
                 ]
             ),
             limit=chunk_limit
-        )
+        ).points
         logger.info(f"   → Qdrant path 필터 검색 결과: {len(results)}개 청크")
     else:
-        results = client.search(
+        results = client.query_points(
             collection_name=COLLECTION_NAME,
-            query_vector=query_vector,
+            query=query_vector,
             limit=chunk_limit
-        )
+        ).points
 
     # 경로 기준 중복 제거: 파일당 최고 점수 청크만 유지 후 limit개 반환
-    if results:
-        logger.info(f"🔍 Qdrant 원본 검색 결과: {len(results)}개 청크")
+    if not results:
+        return results
 
-        seen_paths = {}
-        for r in results:
-            path = r.payload.get("path", str(r.id))
-            if path not in seen_paths or r.score > seen_paths[path].score:
-                seen_paths[path] = r
+    logger.info(f"🔍 Qdrant 원본 검색 결과: {len(results)}개 청크")
 
-        unique_results = sorted(seen_paths.values(), key=lambda x: x.score, reverse=True)[:limit]
+    seen_paths = {}
+    for r in results:
+        path = r.payload.get("path", str(r.id))
+        if path not in seen_paths or r.score > seen_paths[path].score:
+            seen_paths[path] = r
 
-        logger.info(f"🔀 파일 단위 병합: {len(results)}개 청크 → {len(unique_results)}개 파일")
+    unique_results = sorted(seen_paths.values(), key=lambda x: x.score, reverse=True)[:limit]
+    logger.info(f"🔀 파일 단위 병합: {len(results)}개 청크 → {len(unique_results)}개 파일")
 
-        return unique_results
+    # 파일명 키워드 보강: dedup 후 top-k에 없는 파일 중 파일명 keyword 매칭 파일을 강제 포함
+    # (한국어 복합어 대응: bigram/trigram 분해 → substring 매칭)
+    if not filter_tags:
+        try:
+            import re as _re
+            words = _re.findall(r'[가-힣a-zA-Z]{2,}', query)
+            keywords = set()
+            for w in words:
+                keywords.add(w)
+                for i in range(len(w) - 1):
+                    keywords.add(w[i:i + 2])
+                for i in range(len(w) - 2):
+                    keywords.add(w[i:i + 3])
+            keywords = {k for k in keywords if len(k) >= 2}
 
-    return results
+            if keywords:
+                all_resp = es.search(
+                    index=INDEX_NAME,
+                    query={"match_all": {}},
+                    _source=["path", "filename"],
+                    size=1000
+                )
+                top_paths = {r.payload.get("path") for r in unique_results}
+                extra_paths = [
+                    h["_source"]["path"] for h in all_resp["hits"]["hits"]
+                    if h["_source"]["path"] not in top_paths
+                    and any(kw in h["_source"]["filename"] for kw in keywords)
+                ]
+                if extra_paths:
+                    from qdrant_client.models import Filter, FieldCondition, MatchAny
+                    extra_chunks = client.query_points(
+                        collection_name=COLLECTION_NAME,
+                        query=query_vector,
+                        query_filter=Filter(
+                            must=[FieldCondition(key="path", match=MatchAny(any=extra_paths))]
+                        ),
+                        limit=len(extra_paths) * 3
+                    ).points
+                    extra_seen = {}
+                    for r in extra_chunks:
+                        path = r.payload.get("path", str(r.id))
+                        if path not in extra_seen or r.score > extra_seen[path].score:
+                            extra_seen[path] = r
+                    # keyword 매칭 파일 스코어를 top-1 스코어로 올려서 함께 재정렬
+                    top_score = (unique_results[0].score if unique_results else 0.9) + 0.01
+                    boosted = []
+                    for r in extra_seen.values():
+                        try:
+                            boosted.append(r.model_copy(update={"score": top_score}))
+                        except Exception:
+                            boosted.append(r)
+                    all_candidates = list(unique_results) + boosted
+                    all_candidates.sort(key=lambda x: x.score, reverse=True)
+                    unique_results = all_candidates[:limit]
+                    logger.info(f"   → 파일명 키워드 보강: {list(extra_seen.keys())} 추가 (score→{top_score:.3f})")
+        except Exception as _e:
+            logger.warning(f"⚠️ 파일명 키워드 보강 실패 (무시): {_e}")
+
+    logger.info(f"📄 최종 반환 파일: {[r.payload.get('filename') for r in unique_results]}")
+    return unique_results
 
 def generate_answer_with_rag(query: str, top_k: int = 359, ignore_token_limit: bool = False, model: str = "gpt-4o-mini"):
     """
@@ -438,6 +496,46 @@ def generate_answer_with_rag(query: str, top_k: int = 359, ignore_token_limit: b
         'elapsed_time': elapsed_time
     }
 
+def _prepare_context(results, top_k: int, ignore_token_limit: bool):
+    """Shared context building for streaming and non-streaming paths."""
+    max_context_tokens = 180000 if ignore_token_limit else 110000
+    context_parts = []
+    sources = []
+    current_tokens = 0
+    notes_added = 0
+
+    for i, result in enumerate(results, 1):
+        if notes_added >= top_k:
+            break
+        filename = result.payload.get('filename', 'Unknown')
+        tags = result.payload.get('tags', [])
+        note_text = result.payload.get('parent_text') or result.payload.get('text', '')
+        note_header = f"[노트 {i}: {filename}]\n태그: {', '.join(['#' + t for t in tags]) if tags else '없음'}\n"
+        header_tokens = count_tokens(note_header)
+        total_note_tokens = header_tokens + count_tokens(note_text)
+
+        if current_tokens + total_note_tokens > max_context_tokens:
+            remaining = max_context_tokens - current_tokens - header_tokens
+            if remaining < 100:
+                break
+            note_text = encoding.decode(encoding.encode(note_text)[:remaining]) + "...(생략)"
+            total_note_tokens = header_tokens + count_tokens(note_text)
+
+        context_parts.append(f"{note_header}{note_text}\n")
+        sources.append({
+            'id': i,
+            'filename': filename,
+            'text': (result.payload.get('chunk_text') or result.payload.get('text', ''))[:500],
+            'section': result.payload.get('section', ''),
+            'score': float(result.score),
+            'tags': tags
+        })
+        current_tokens += total_note_tokens
+        notes_added += 1
+
+    return "\n".join(context_parts), sources, current_tokens
+
+
 def _rewrite_query_standalone(query: str, history: list) -> str:
     """Follow-up 쿼리를 벡터 검색용 standalone 쿼리로 rewrite"""
     recent = history[-4:] if len(history) >= 4 else history
@@ -731,7 +829,7 @@ def generate_followup_answer(query: str, history: list, top_k: int = 359, ignore
     elapsed_time = (datetime.now() - start_time).total_seconds()
     logger.info(f"⏱️  처리 시간: {elapsed_time:.2f}초")
     logger.info(f"=== Follow-up 쿼리 완료 ===\n")
-    
+
     return {
         'answer': answer,
         'sources': sources,
@@ -743,3 +841,181 @@ def generate_followup_answer(query: str, history: list, top_k: int = 359, ignore
         },
         'elapsed_time': elapsed_time
     }
+
+
+# ---------------------------------------------------------------------------
+# Streaming variants
+# ---------------------------------------------------------------------------
+
+def generate_answer_stream(query: str, top_k: int = 5, ignore_token_limit: bool = False, model: str = "gpt-4o-mini"):
+    """Sync generator yielding SSE data strings for a standalone RAG query."""
+    import json
+    import re
+    start_time = datetime.now()
+
+    tag_pattern = re.findall(r'#(\w+)', query)
+    tag_keywords = re.findall(r'(\w+)\s*태그', query)
+    filter_tags = list(set(tag_pattern + tag_keywords))
+
+    if filter_tags:
+        results = search_relevant_notes(query, limit=top_k, filter_tags=filter_tags)
+    else:
+        results = search_relevant_notes(query, limit=top_k)
+
+    if not results:
+        yield f'data: {json.dumps({"type": "token", "content": "관련된 노트를 찾을 수 없습니다."})}\n\n'
+        yield f'data: {json.dumps({"type": "sources", "sources": []})}\n\n'
+        yield f'data: {json.dumps({"type": "done", "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}, "elapsed_time": 0, "answer": "관련된 노트를 찾을 수 없습니다."})}\n\n'
+        return
+
+    seen_ids = set()
+    unique = []
+    for r in results:
+        if r.id not in seen_ids:
+            seen_ids.add(r.id)
+            unique.append(r)
+
+    context, sources, _ = _prepare_context(unique, top_k, ignore_token_limit)
+
+    system_prompt = """당신은 사용자의 개인 노트를 기반으로 질문에 답하는 AI 어시스턴트입니다.
+제공된 노트 내용을 바탕으로 정확하고 유용한 답변을 제공하세요.
+노트에 없는 내용은 추측하지 말고, 노트 기반으로만 답변하세요.
+답변 시 어떤 노트를 참조했는지 [노트 번호]를 명시하세요."""
+
+    user_prompt = f"""다음은 사용자의 노트 내용입니다:
+
+{context}
+
+사용자 질문: {query}
+
+위 노트 내용을 바탕으로 질문에 답변해주세요."""
+
+    if model == "gpt-5-mini":
+        result = generate_answer_with_rag(query, top_k, ignore_token_limit, model)
+        yield f'data: {json.dumps({"type": "token", "content": result["answer"]})}\n\n'
+        yield f'data: {json.dumps({"type": "sources", "sources": result["sources"]})}\n\n'
+        yield f'data: {json.dumps({"type": "done", "usage": result["usage"], "elapsed_time": result["elapsed_time"], "answer": result["answer"]})}\n\n'
+        return
+
+    full_answer = ""
+    usage_data = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+
+    stream = openai_client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ],
+        max_tokens=800,
+        temperature=0.7,
+        stream=True,
+        stream_options={"include_usage": True}
+    )
+
+    for chunk in stream:
+        if chunk.choices and chunk.choices[0].delta.content:
+            content = chunk.choices[0].delta.content
+            full_answer += content
+            yield f'data: {json.dumps({"type": "token", "content": content})}\n\n'
+        if chunk.usage:
+            usage_data = {
+                "prompt_tokens": chunk.usage.prompt_tokens,
+                "completion_tokens": chunk.usage.completion_tokens,
+                "total_tokens": chunk.usage.total_tokens
+            }
+
+    elapsed_time = (datetime.now() - start_time).total_seconds()
+    logger.info(f"⏱️ [stream] {elapsed_time:.2f}s, {usage_data['total_tokens']} tokens")
+
+    yield f'data: {json.dumps({"type": "sources", "sources": sources})}\n\n'
+    yield f'data: {json.dumps({"type": "done", "usage": usage_data, "elapsed_time": elapsed_time, "answer": full_answer})}\n\n'
+
+
+def generate_followup_stream(query: str, history: list, top_k: int = 5, ignore_token_limit: bool = False, model: str = "gpt-4o-mini"):
+    """Sync generator yielding SSE data strings for a follow-up RAG query."""
+    import json
+    import re
+    start_time = datetime.now()
+
+    tag_pattern = re.findall(r'#(\w+)', query)
+    tag_keywords = re.findall(r'(\w+)\s*태그', query)
+    filter_tags = list(set(tag_pattern + tag_keywords))
+
+    if not filter_tags and history:
+        for msg in reversed(history):
+            msg_content = msg.get('content', '') if isinstance(msg, dict) else getattr(msg, 'content', '')
+            history_tags = list(set(re.findall(r'#(\w+)', msg_content) + re.findall(r'(\w+)\s*태그', msg_content)))
+            if history_tags:
+                filter_tags = history_tags
+                break
+
+    search_query = _rewrite_query_standalone(query, history)
+
+    if filter_tags:
+        results = search_relevant_notes(search_query, limit=top_k, filter_tags=filter_tags)
+    else:
+        results = search_relevant_notes(search_query, limit=top_k)
+
+    if not results:
+        yield f'data: {json.dumps({"type": "token", "content": "관련된 노트를 찾을 수 없습니다."})}\n\n'
+        yield f'data: {json.dumps({"type": "sources", "sources": []})}\n\n'
+        yield f'data: {json.dumps({"type": "done", "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}, "elapsed_time": 0, "answer": "관련된 노트를 찾을 수 없습니다."})}\n\n'
+        return
+
+    seen_ids = set()
+    unique = []
+    for r in results:
+        if r.id not in seen_ids:
+            seen_ids.add(r.id)
+            unique.append(r)
+
+    context, sources, _ = _prepare_context(unique, top_k, ignore_token_limit)
+
+    messages = [
+        {"role": "system", "content": """당신은 사용자의 개인 노트를 기반으로 질문에 답하는 AI 어시스턴트입니다.
+이전 대화 내용을 참고하여 자연스럽게 대화를 이어가세요.
+노트 내용과 이전 대화를 바탕으로 정확하고 유용한 답변을 제공하세요."""}
+    ]
+    for msg in history[-15:]:
+        if isinstance(msg, dict):
+            messages.append({"role": msg.get("role"), "content": msg.get("content")})
+        else:
+            messages.append({"role": msg.role, "content": msg.content})
+    messages.append({"role": "user", "content": f"관련 노트:\n\n{context}\n\n질문: {query}"})
+
+    if model == "gpt-5-mini":
+        result = generate_followup_answer(query, history, top_k, ignore_token_limit, model)
+        yield f'data: {json.dumps({"type": "token", "content": result["answer"]})}\n\n'
+        yield f'data: {json.dumps({"type": "sources", "sources": result["sources"]})}\n\n'
+        yield f'data: {json.dumps({"type": "done", "usage": result["usage"], "elapsed_time": result["elapsed_time"], "answer": result["answer"]})}\n\n'
+        return
+
+    full_answer = ""
+    usage_data = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+
+    stream = openai_client.chat.completions.create(
+        model=model,
+        messages=messages,
+        max_tokens=800,
+        temperature=0.7,
+        stream=True,
+        stream_options={"include_usage": True}
+    )
+
+    for chunk in stream:
+        if chunk.choices and chunk.choices[0].delta.content:
+            content = chunk.choices[0].delta.content
+            full_answer += content
+            yield f'data: {json.dumps({"type": "token", "content": content})}\n\n'
+        if chunk.usage:
+            usage_data = {
+                "prompt_tokens": chunk.usage.prompt_tokens,
+                "completion_tokens": chunk.usage.completion_tokens,
+                "total_tokens": chunk.usage.total_tokens
+            }
+
+    elapsed_time = (datetime.now() - start_time).total_seconds()
+    logger.info(f"⏱️ [stream follow-up] {elapsed_time:.2f}s, {usage_data['total_tokens']} tokens")
+
+    yield f'data: {json.dumps({"type": "sources", "sources": sources})}\n\n'
+    yield f'data: {json.dumps({"type": "done", "usage": usage_data, "elapsed_time": elapsed_time, "answer": full_answer})}\n\n'

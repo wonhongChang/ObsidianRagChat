@@ -99,9 +99,9 @@ def sync_all():
             all_chunks.extend(chunk_document(doc))
         print(f"   → {len(to_process)}개 파일 → {len(all_chunks)}개 청크")
 
-        # 임베딩 생성 (청크 텍스트 기준)
+        # 임베딩 생성 (파일명 + 청크 텍스트)
         print(f"\n   🧠 임베딩 생성 중...")
-        vectors = embed_texts([c["chunk_text"] for c in all_chunks])
+        vectors = embed_texts([f"파일명: {c['filename']}\n{c['chunk_text']}" for c in all_chunks])
 
         # Qdrant 업로드
         print(f"   ⬆️  Qdrant 업로드 중...")
@@ -127,7 +127,11 @@ def sync_all():
                 )
             )
 
-        client.upsert(collection_name=COLLECTION_NAME, points=points)
+        batch_size = 100
+        for i in range(0, len(points), batch_size):
+            batch = points[i:i + batch_size]
+            client.upsert(collection_name=COLLECTION_NAME, points=batch)
+            print(f"   ⬆️  배치 {i//batch_size + 1}: {len(batch)}개 업로드")
         print(f"   ✅ Qdrant 업로드 완료 ({len(points)}개 청크)")
 
         # Elasticsearch 인덱싱 (파일 단위 전체 텍스트)

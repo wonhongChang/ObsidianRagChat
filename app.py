@@ -1,10 +1,10 @@
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from typing import List, Optional
-from rag.generator import generate_answer_with_rag, generate_followup_answer
+from rag.generator import generate_answer_with_rag, generate_followup_answer, generate_answer_stream, generate_followup_stream
 from search.cache import get_cached_rag, set_cached_rag, clear_all_cache, get_cache_stats, normalize_query
 from search.question_detector import is_independent_question, save_query
 import os
@@ -31,7 +31,7 @@ class QueryRequest(BaseModel):
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     """메인 페이지 (채팅 인터페이스)"""
-    return templates.TemplateResponse("chat.html", {"request": request})
+    return templates.TemplateResponse(request, "chat.html")
 
 @app.get("/favicon.ico")
 async def favicon():
@@ -157,6 +157,100 @@ async def search(query_request: QueryRequest):
             "success": False,
             "error": str(e)
         }
+
+@app.post("/api/search/stream")
+async def search_stream(query_request: QueryRequest):
+    """SSE streaming RAG search — first token arrives within ~1s."""
+    import time
+
+    start_time = time.time()
+
+    effective_history = query_request.history
+    is_independent = False
+    if query_request.history and len(query_request.history) > 0:
+        is_independent = is_independent_question(query_request.query, query_request.history)
+        if is_independent:
+            effective_history = []
+
+    cache_key_parts = [
+        normalize_query(query_request.query),
+        str(query_request.top_k),
+        str(query_request.ignore_token_limit),
+        query_request.model
+    ]
+    if effective_history and len(effective_history) > 0:
+        history_dicts = []
+        for msg in effective_history:
+            if isinstance(msg, dict):
+                history_dicts.append(msg)
+            else:
+                history_dicts.append({"role": msg.role, "content": msg.content})
+        history_str = json.dumps(history_dicts, ensure_ascii=False, sort_keys=True)
+        history_hash = hashlib.md5(history_str.encode('utf-8')).hexdigest()
+        cache_key_parts.append(f"history:{history_hash}")
+    cache_key = "|".join(cache_key_parts)
+
+    cached_result = get_cached_rag(cache_key)
+    if cached_result:
+        save_query(query_request.query)
+        cache_elapsed = time.time() - start_time
+
+        def cache_gen():
+            answer = cached_result.get('answer', '')
+            yield f'data: {json.dumps({"type": "token", "content": answer})}\n\n'
+            yield f'data: {json.dumps({"type": "sources", "sources": cached_result.get("sources", [])})}\n\n'
+            yield f'data: {json.dumps({"type": "done", "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}, "elapsed_time": cache_elapsed, "cached": True})}\n\n'
+
+        return StreamingResponse(cache_gen(), media_type="text/event-stream")
+
+    if effective_history and len(effective_history) > 0:
+        gen = generate_followup_stream(
+            query=query_request.query,
+            history=effective_history,
+            top_k=query_request.top_k,
+            ignore_token_limit=query_request.ignore_token_limit,
+            model=query_request.model
+        )
+    else:
+        gen = generate_answer_stream(
+            query=query_request.query,
+            top_k=query_request.top_k,
+            ignore_token_limit=query_request.ignore_token_limit,
+            model=query_request.model
+        )
+
+    def stream_and_cache():
+        full_answer = ""
+        final_sources = []
+        final_usage = {}
+        final_elapsed = 0.0
+
+        for event_str in gen:
+            yield event_str
+            if event_str.startswith('data: '):
+                try:
+                    data = json.loads(event_str[6:])
+                    if data['type'] == 'token':
+                        full_answer += data['content']
+                    elif data['type'] == 'sources':
+                        final_sources = data['sources']
+                    elif data['type'] == 'done':
+                        final_usage = data.get('usage', {})
+                        final_elapsed = data.get('elapsed_time', 0.0)
+                except Exception:
+                    pass
+
+        set_cached_rag(cache_key, {
+            'answer': full_answer,
+            'sources': final_sources,
+            'query': query_request.query,
+            'usage': final_usage,
+            'elapsed_time': final_elapsed
+        })
+        save_query(query_request.query)
+
+    return StreamingResponse(stream_and_cache(), media_type="text/event-stream")
+
 
 @app.get("/health")
 async def health():
