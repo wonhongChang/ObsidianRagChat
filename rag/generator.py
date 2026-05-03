@@ -140,15 +140,14 @@ def search_relevant_notes(query: str, limit: int = 5, filter_tags: list = None):
 
     return results
 
-def generate_answer_with_rag(query: str, top_k: int = 359, exclude_zd: bool = False, ignore_token_limit: bool = False, model: str = "gpt-4o-mini"):
+def generate_answer_with_rag(query: str, top_k: int = 359, ignore_token_limit: bool = False, model: str = "gpt-4o-mini"):
     """
     Qdrant에서 관련 노트를 검색하고 GPT를 사용해 답변 생성
-    
+
     Args:
         query: 사용자 질문
         top_k: 검색할 관련 노트 개수 (기본값 5)
-        exclude_zd: ZD# 문서 제외 여부 (기본값 False)
-    
+
     Returns:
         dict: {
             'answer': GPT-4의 답변,
@@ -160,8 +159,6 @@ def generate_answer_with_rag(query: str, top_k: int = 359, exclude_zd: bool = Fa
     logger.info(f"=== 새로운 쿼리 시작 ===")
     logger.info(f"📝 쿼리: {query}")
     logger.info(f"🔢 검색할 노트 개수: {top_k}")
-    if exclude_zd:
-        logger.info(f"🚫 ZD# 문서 제외 옵션 활성화")
     
     # 쿼리에서 태그 추출 (예: "#painpoint" 또는 "painpoint 태그")
     import re
@@ -200,17 +197,6 @@ def generate_answer_with_rag(query: str, top_k: int = 359, exclude_zd: bool = Fa
         logger.warning(f"⚠️  중복 제거: {len(results)}개 → {len(unique_results)}개")
     
     results = unique_results
-    
-    # ZD 문서 필터링 (파일명에 "ZD"가 포함된 모든 문서 제외, 대소문자 무시)
-    if exclude_zd:
-        filtered_results = []
-        for r in results:
-            filename = r.payload.get('filename', '')
-            if 'ZD' not in filename.upper():
-                filtered_results.append(r)
-        
-        logger.info(f"🚫 ZD 필터링: {len(results)}개 → {len(filtered_results)}개")
-        results = filtered_results
     
     # 2. 토큰 기반 컨텍스트 구성 (최대 토큰 + 노트 개수 제한)
     # 최대 토큰 모드가 활성화되면 180K, 아니면 110K 사용
@@ -487,16 +473,15 @@ Follow-up 질문: {query}
         return query
 
 
-def generate_followup_answer(query: str, history: list, top_k: int = 359, exclude_zd: bool = False, ignore_token_limit: bool = False, model: str = "gpt-4o-mini"):
+def generate_followup_answer(query: str, history: list, top_k: int = 359, ignore_token_limit: bool = False, model: str = "gpt-4o-mini"):
     """
     이전 대화 히스토리를 바탕으로 follow-up 질문에 답변
-    
+
     Args:
         query: 사용자의 follow-up 질문
         history: 이전 대화 히스토리 [{"role": "user|assistant", "content": "..."}]
         top_k: 검색할 관련 노트 개수 (기본값 359개 = 전체)
-        exclude_zd: ZD# 문서 제외 여부 (기본값 False)
-    
+
     Returns:
         dict: 답변 및 관련 정보
     """
@@ -504,8 +489,6 @@ def generate_followup_answer(query: str, history: list, top_k: int = 359, exclud
     logger.info(f"=== Follow-up 쿼리 시작 ===")
     logger.info(f"📝 쿼리: {query}")
     logger.info(f"💬 히스토리 길이: {len(history)}개 메시지")
-    if exclude_zd:
-        logger.info(f"🚫 ZD# 문서 제외 옵션 활성화")
     
     # 태그 추출 (현재 query + history)
     import re
@@ -551,17 +534,6 @@ def generate_followup_answer(query: str, history: list, top_k: int = 359, exclud
         logger.warning(f"⚠️  중복 제거: {len(results)}개 → {len(unique_results)}개")
     
     results = unique_results
-    
-    # ZD 문서 필터링 (파일명에 "ZD"가 포함된 모든 문서 제외, 대소문자 무시)
-    if exclude_zd:
-        filtered_results = []
-        for r in results:
-            filename = r.payload.get('filename', '')
-            if 'ZD' not in filename.upper():
-                filtered_results.append(r)
-        
-        logger.info(f"🚫 ZD 필터링: {len(results)}개 → {len(filtered_results)}개")
-        results = filtered_results
     
     # 토큰 기반 컨텍스트 구성
     sources = []

@@ -24,7 +24,6 @@ class Message(BaseModel):
 class QueryRequest(BaseModel):
     query: str
     top_k: int = 5  # 기본값 5개 (성능 최적화)
-    exclude_zd: bool = False  # ZD# 문서 제외 옵션
     ignore_token_limit: bool = False  # 토큰 제한 무시 옵션
     model: str = "gpt-4o-mini"  # 사용할 모델
     history: Optional[List[Message]] = []
@@ -128,7 +127,6 @@ async def search(query_request: QueryRequest):
                 query=query_request.query,
                 history=effective_history,
                 top_k=query_request.top_k,
-                exclude_zd=query_request.exclude_zd,
                 ignore_token_limit=query_request.ignore_token_limit,
                 model=query_request.model
             )
@@ -137,7 +135,6 @@ async def search(query_request: QueryRequest):
             result = generate_answer_with_rag(
                 query=query_request.query,
                 top_k=query_request.top_k,
-                exclude_zd=query_request.exclude_zd,
                 ignore_token_limit=query_request.ignore_token_limit,
                 model=query_request.model
             )

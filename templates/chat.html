@@ -479,7 +479,6 @@
                     body: JSON.stringify({
                         query: message,
                         top_k: topK,
-                        exclude_zd: false,
                         ignore_token_limit: ignoreTokenLimit,
                         model: selectedModel,
                         history: conversationHistory.slice(0, -1) // 현재 메시지 제외한 히스토리

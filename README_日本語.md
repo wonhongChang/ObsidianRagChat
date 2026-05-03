@@ -139,7 +139,6 @@ http://localhost:8001
   "top_k": 5,
   "model": "gpt-4o-mini",
   "ignore_token_limit": false,
-  "exclude_zd": false,
   "history": []
 }
 ```
