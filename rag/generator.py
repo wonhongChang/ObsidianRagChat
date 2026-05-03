@@ -459,6 +459,41 @@ def generate_answer_with_rag(query: str, top_k: int = 359, exclude_zd: bool = Fa
         'elapsed_time': elapsed_time
     }
 
+def _rewrite_query_standalone(query: str, history: list) -> str:
+    """Follow-up 쿼리를 벡터 검색용 standalone 쿼리로 rewrite"""
+    recent = history[-4:] if len(history) >= 4 else history
+    history_text = "\n".join([
+        f"{msg.get('role', 'user')}: {msg.get('content', '')[:200]}"
+        if isinstance(msg, dict)
+        else f"{msg.role}: {msg.content[:200]}"
+        for msg in recent
+    ])
+
+    prompt = f"""대화 히스토리를 참고하여 아래 Follow-up 질문을 독립적인 검색 쿼리로 바꿔주세요.
+검색 엔진에 입력할 간결한 한 문장으로 작성하세요. 다른 설명은 하지 마세요.
+
+대화 히스토리:
+{history_text}
+
+Follow-up 질문: {query}
+
+독립적인 검색 쿼리:"""
+
+    try:
+        response = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=100,
+            temperature=0
+        )
+        rewritten = response.choices[0].message.content.strip()
+        logger.info(f"🔄 쿼리 rewrite: '{query}' → '{rewritten}'")
+        return rewritten
+    except Exception as e:
+        logger.warning(f"⚠️  쿼리 rewrite 실패, 원본 사용: {e}")
+        return query
+
+
 def generate_followup_answer(query: str, history: list, top_k: int = 359, exclude_zd: bool = False, ignore_token_limit: bool = False, model: str = "gpt-4o-mini"):
     """
     이전 대화 히스토리를 바탕으로 follow-up 질문에 답변
@@ -498,15 +533,17 @@ def generate_followup_answer(query: str, history: list, top_k: int = 359, exclud
                 logger.info(f"   → history에서 태그 발견: {filter_tags}")
                 break
 
+    # Follow-up 쿼리를 standalone 검색 쿼리로 rewrite
+    search_query = _rewrite_query_standalone(query, history)
+
     # 노트 검색
     if filter_tags:
         logger.info(f"🏷️  태그 필터 적용: {filter_tags}")
-        # 태그 필터가 있으면 해당 태그 문서만 검색 (일반 검색 추가 안 함)
-        results = search_relevant_notes(query, limit=top_k, filter_tags=filter_tags)
+        results = search_relevant_notes(search_query, limit=top_k, filter_tags=filter_tags)
         logger.info(f"   → 태그 필터 결과: {len(results)}개 (일반 검색 추가 안 함)")
     else:
-        results = search_relevant_notes(query, limit=top_k)
-    
+        results = search_relevant_notes(search_query, limit=top_k)
+
     logger.info(f"📚 검색된 노트 개수: {len(results)}")
     
     # 중복 제거 (같은 ID의 노트는 하나만 유지)
