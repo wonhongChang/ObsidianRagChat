@@ -16,9 +16,9 @@ ObsidianノートをRAGシステムに変換してGPTと対話するWebインタ
     ▼
 [app.py] FastAPI :8001
     ├─ ルールベース 独立/フォローアップ判定 (GPT不使用)
-    ├─ Redisキャッシュ確認 (TTL 30分)
+    ├─ Redisキャッシュ確認 → ヒット時は即座に返却 (TTL 30分)
     │
-    ▼ (キャッシュミス)
+    ▼ (ミス時)
 [rag/generator.py]
     ├─ フォローアップ → GPT standalone rewrite → ベクトル検索
     ├─ タグ抽出 → Elasticsearch パスフィルタ

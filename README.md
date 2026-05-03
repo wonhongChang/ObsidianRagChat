@@ -16,9 +16,9 @@ Obsidian 노트를 RAG 시스템으로 변환해 GPT와 대화하는 웹 인터�
     ▼
 [app.py] FastAPI :8001
     ├─ 규칙 기반 독립/Follow-up 감지 (GPT 없음)
-    ├─ Redis 캐시 조회 (TTL 30분)
+    ├─ Redis 캐시 조회 → 히트 시 즉시 반환 (TTL 30분)
     │
-    ▼ (캐시 미스)
+    ▼ (미스 시)
 [rag/generator.py]
     ├─ Follow-up → GPT standalone rewrite → 벡터 검색
     ├─ 태그 추출 → Elasticsearch 경로 필터
