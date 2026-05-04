@@ -1,4 +1,4 @@
-# スクリプト / 유틸리티 스크립트
+# 유틸리티 스크립트
 
 관리 및 유지보수를 위한 스크립트 모음입니다.
 
@@ -48,18 +48,6 @@ docker-compose exec web python scripts/add_qdrant_index.py
 - 최초 설치 후 태그 필터 검색 성능을 높이고 싶을 때
 - `MatchAny` 필터 오류가 발생할 때
 
----
-
-## migrate_qdrant_payload.py
-
-**용도**: 구버전 payload 구조를 현재 구조로 마이그레이션 (레거시)
-
-> ⚠️ **신규 설치에는 불필요합니다.**
-> 구버전(`text / tags / mtime / hash` 포함)에서 현재 버전(`path / filename`)으로 업그레이드할 때만 사용하세요.
-
-```bash
-docker-compose exec web python scripts/migrate_qdrant_payload.py
-```
 
 ---
 

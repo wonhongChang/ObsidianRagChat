@@ -48,18 +48,6 @@ docker-compose exec web python scripts/add_qdrant_index.py
 - 初回インストール後にタグフィルター検索の性能を上げたいとき
 - `MatchAny` フィルターエラーが発生したとき
 
----
-
-## migrate_qdrant_payload.py
-
-**用途**: 旧バージョンの payload 構造を現在の構造へ移行 (レガシー)
-
-> ⚠️ **新規インストールには不要です。**
-> 旧バージョン (`text / tags / mtime / hash` 含む) から現在のバージョン (`path / filename`) へアップグレードする場合のみ使用してください。
-
-```bash
-docker-compose exec web python scripts/migrate_qdrant_payload.py
-```
 
 ---
 
