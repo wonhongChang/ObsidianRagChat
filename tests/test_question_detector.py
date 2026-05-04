@@ -58,6 +58,23 @@ def test_rephrase_high_similarity():
     print("✅ 유사도 감지 성공")
 
 
+def test_rephrase_substring_containment():
+    """포함 관계 → Rephrase (독립 질문) — 캐시 키 공유 핵심 로직"""
+    # 짧은 쿼리 ⊆ 긴 쿼리 (단축형 → 확장형)
+    save_query("Redis 캐싱 설명해줘")
+    history = [{"role": "assistant", "content": "이전 답변"}]
+
+    result = is_independent_question("Redis 캐싱", history)
+    assert result is True
+
+    # 반대 방향: 짧은 쪽이 저장되고 긴 쪽 질문
+    clear_recent_queries()
+    save_query("Redis 캐싱")
+    result = is_independent_question("Redis 캐싱 설명해줘", history)
+    assert result is True
+    print("✅ 포함 관계 Rephrase 감지 성공")
+
+
 def test_rephrase_low_similarity():
     """90% 미만 유사도 → Rephrase 아님, 규칙 미결정 시 Follow-up"""
     query1 = "Redis 캐싱 설명해줘"
@@ -176,6 +193,49 @@ def test_rule_about_pattern_with_pronoun():
         result = is_independent_question(query, history)
         assert result is False  # 대명사 규칙이 먼저 작동
         print(f"✅ 대명사 우선 감지 성공: {query}")
+
+
+def test_rule_long_query():
+    """15단어 이상 긴 질문 → 독립 질문"""
+    query = "이 프로젝트의 Redis 캐싱 전략에서 TTL 설정과 캐시 키 설계 방식을 자세히 설명해줄 수 있어"
+    history = [{"role": "assistant", "content": "이전 답변"}]
+
+    result = is_independent_question(query, history)
+    assert result is True
+    print("✅ 긴 질문 감지 성공")
+
+
+def test_rule_interrogative_word():
+    """의문사로 시작 → 독립 질문 (의문사 뒤 공백 필수)"""
+    queries = [
+        ("왜 Redis를 캐시로 쓰나요", True),
+        ("어떻게 동기화하나요", True),
+        ("뭐 달라진 거야", True),
+        ("what is FastAPI", True),
+        ("how does it work", True),
+    ]
+    history = [{"role": "assistant", "content": "이전 답변"}]
+
+    for query, expected in queries:
+        result = is_independent_question(query, history)
+        assert result is expected
+        print(f"✅ 의문사 감지 성공: {query}")
+
+
+def test_rule_definition_keyword():
+    """정의/개념 키워드 포함 → 독립 질문"""
+    queries = [
+        "벡터 임베딩의 정의를 알려줘",
+        "RAG와 파인튜닝의 차이를 설명해줘",
+        "Qdrant의 특징이 뭐야",
+        "코사인 유사도의 개념 설명",
+    ]
+    history = [{"role": "assistant", "content": "이전 답변"}]
+
+    for query in queries:
+        result = is_independent_question(query, history)
+        assert result is True
+        print(f"✅ 정의/개념 키워드 감지 성공: {query}")
 
 
 # ===== 규칙 미결정 → Follow-up 기본값 테스트 =====
