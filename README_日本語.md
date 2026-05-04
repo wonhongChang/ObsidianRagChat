@@ -183,8 +183,9 @@ ObsidianRagChat/
 │   └── question_detector.py   # 独立/フォローアップ判定 (ルールベース)
 │
 ├── scripts/
-│   ├── clear_cache.py
-│   └── clear_qdrant.py
+│   ├── clear_cache.py         # Redis キャッシュ初期化
+│   ├── clear_qdrant.py        # Qdrant コレクション初期化
+│   └── add_qdrant_index.py    # path フィールドインデックス追加 (初回のみ)
 │
 ├── tests/
 │   ├── test_question_detector.py  # 質問判定ユニットテスト (24件)
@@ -207,7 +208,7 @@ docker-compose exec web python scripts/clear_cache.py
 curl -X DELETE http://localhost:3000/api/cache
 
 # Qdrant初期化 (再同期が必要な場合)
-docker-compose run --rm sync python -c "from embed.vector_store import client, COLLECTION_NAME; client.delete_collection(COLLECTION_NAME)"
+docker-compose exec web python scripts/clear_qdrant.py
 docker-compose restart sync
 
 # ESインデックス再作成 (lowercase_normalizer適用)
