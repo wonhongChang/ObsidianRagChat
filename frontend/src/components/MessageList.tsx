@@ -24,8 +24,8 @@ export function MessageList({ messages }: Props) {
         <div className="flex flex-wrap gap-2 justify-center mt-2">
           {[
             '와인 추천해줘',
-            '#interview 태그 문서 요약',
-            '자기소개서 어떻게 써?',
+            '#RagChat 태그 문서 요약',
+            '이번주 할일 알려줘',
           ].map((hint) => (
             <span
               key={hint}

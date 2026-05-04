@@ -42,6 +42,11 @@ test_*.json
 # Internal documents
 docs/
 
+# Local test scenarios (personal note data)
+tests/test_example*.md
+tests/test_example*.py
+tests/test_search*.py
+
 # Frontend build artifacts
 frontend/node_modules/
 frontend/dist/

@@ -30,7 +30,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     const { messages } = get();
 
     // API 전송용 — UI 전용 필드 제거
-    const apiHistory: ApiMessage[] = messages.map(({ role, content }) => ({ role, content }));
+    const apiHistory: ApiMessage[] = messages
+      .map(({ role, content }) => ({ role, content }))
+      .slice(-15);
 
     const assistantId = crypto.randomUUID();
 

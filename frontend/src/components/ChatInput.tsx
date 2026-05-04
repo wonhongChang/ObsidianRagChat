@@ -33,7 +33,7 @@ export function ChatInput({ onSend, disabled }: Props) {
         ref={ref}
         rows={1}
         disabled={disabled}
-        placeholder="질문을 입력하세요… (예: #interview 태그 문서 요약해줘)"
+        placeholder="질문을 입력하세요…"
         className="flex-1 resize-none rounded-2xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 px-4 py-2.5 text-sm leading-relaxed outline-none focus:border-violet-500 dark:focus:border-violet-400 transition-colors disabled:opacity-50"
         onInput={resize}
         onKeyDown={(e) => {

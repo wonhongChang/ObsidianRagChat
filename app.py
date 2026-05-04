@@ -309,7 +309,7 @@ async def get_notes_count():
         return {
             "success": False,
             "error": str(e),
-            "count": 359  # 오류 시 기본값
+            "count": 0
         }
 
 if __name__ == "__main__":
