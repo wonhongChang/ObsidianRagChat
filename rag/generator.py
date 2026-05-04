@@ -57,8 +57,8 @@ def search_relevant_notes(query: str, limit: int = 5, filter_tags: list = None):
     if filter_tags:
         logger.info(f"🔍 태그 필터링: {filter_tags}")
 
-        # ES lowercase_normalizer가 저장 시 소문자로 정규화하므로 쿼리도 소문자로만 전달
-        tag_variants = list({tag.lower() for tag in filter_tags})
+        # normalizer 유무 관계없이 소문자 + 원본 케이스 모두 전달
+        tag_variants = list({tag.lower() for tag in filter_tags} | set(filter_tags))
 
         es_query = {
             "bool": {
@@ -138,11 +138,11 @@ def search_relevant_notes(query: str, limit: int = 5, filter_tags: list = None):
     logger.info(f"🔀 파일 단위 병합: {len(results)}개 청크 → {len(unique_results)}개 파일")
 
     # 파일명 키워드 보강: dedup 후 top-k에 없는 파일 중 파일명 keyword 매칭 파일을 강제 포함
-    # (한국어 복합어 대응: bigram/trigram 분해 → substring 매칭)
+    # (한국어 복합어 + 일본어/CJK 대응: bigram/trigram 분해 → substring 매칭)
     if not filter_tags:
         try:
             import re as _re
-            words = _re.findall(r'[가-힣a-zA-Z]{2,}', query)
+            words = _re.findall(r'[가-힣a-zA-Z぀-ヿ一-鿿㐀-䶿]{2,}', query)
             keywords = set()
             for w in words:
                 keywords.add(w)
@@ -180,18 +180,35 @@ def search_relevant_notes(query: str, limit: int = 5, filter_tags: list = None):
                         path = r.payload.get("path", str(r.id))
                         if path not in extra_seen or r.score > extra_seen[path].score:
                             extra_seen[path] = r
-                    # keyword 매칭 파일 스코어를 top-1 스코어로 올려서 함께 재정렬
-                    top_score = (unique_results[0].score if unique_results else 0.9) + 0.01
+                    # 외부 추가 파일: top_score + 0.01
+                    # 이미 top-k 안에 있는 키워드 매칭 파일: top_score + 0.02 (더 높게)
+                    # → 이미 관련성 있어서 top-k에 든 파일이 외부 추가 파일보다 항상 우선
+                    base = (unique_results[0].score if unique_results else 0.9)
+                    external_score = base + 0.01
+                    present_score  = base + 0.02
+
                     boosted = []
                     for r in extra_seen.values():
                         try:
-                            boosted.append(r.model_copy(update={"score": top_score}))
+                            boosted.append(r.model_copy(update={"score": external_score}))
                         except Exception:
                             boosted.append(r)
-                    all_candidates = list(unique_results) + boosted
+
+                    reboosted = []
+                    for r in unique_results:
+                        filename = r.payload.get("filename", "")
+                        if any(kw in filename for kw in keywords):
+                            try:
+                                reboosted.append(r.model_copy(update={"score": present_score}))
+                            except Exception:
+                                reboosted.append(r)
+                        else:
+                            reboosted.append(r)
+
+                    all_candidates = reboosted + boosted
                     all_candidates.sort(key=lambda x: x.score, reverse=True)
                     unique_results = all_candidates[:limit]
-                    logger.info(f"   → 파일명 키워드 보강: {list(extra_seen.keys())} 추가 (score→{top_score:.3f})")
+                    logger.info(f"   → 파일명 키워드 보강: 외부 {list(extra_seen.keys())} 추가, present_score={present_score:.3f}, external_score={external_score:.3f}")
         except Exception as _e:
             logger.warning(f"⚠️ 파일명 키워드 보강 실패 (무시): {_e}")
 
@@ -588,24 +605,11 @@ def generate_followup_answer(query: str, history: list, top_k: int = 359, ignore
     logger.info(f"📝 쿼리: {query}")
     logger.info(f"💬 히스토리 길이: {len(history)}개 메시지")
     
-    # 태그 추출 (현재 query + history)
+    # 태그 추출 (현재 query만 — history 상속 없음)
     import re
     tag_pattern = re.findall(r'#(\w+)', query)
     tag_keywords = re.findall(r'(\w+)\s*태그', query)
     filter_tags = list(set(tag_pattern + tag_keywords))
-
-    # 현재 query에 태그가 없으면 history에서 찾기 (역순으로 최근부터)
-    if not filter_tags and history:
-        for msg in reversed(history):
-            msg_content = msg.get('content', '') if isinstance(msg, dict) else getattr(msg, 'content', '')
-            history_tag_pattern = re.findall(r'#(\w+)', msg_content)
-            history_tag_keywords = re.findall(r'(\w+)\s*태그', msg_content)
-            history_tags = list(set(history_tag_pattern + history_tag_keywords))
-
-            if history_tags:
-                filter_tags = history_tags
-                logger.info(f"   → history에서 태그 발견: {filter_tags}")
-                break
 
     # Follow-up 쿼리를 standalone 검색 쿼리로 rewrite
     search_query = _rewrite_query_standalone(query, history)
@@ -940,14 +944,8 @@ def generate_followup_stream(query: str, history: list, top_k: int = 5, ignore_t
     tag_pattern = re.findall(r'#(\w+)', query)
     tag_keywords = re.findall(r'(\w+)\s*태그', query)
     filter_tags = list(set(tag_pattern + tag_keywords))
-
-    if not filter_tags and history:
-        for msg in reversed(history):
-            msg_content = msg.get('content', '') if isinstance(msg, dict) else getattr(msg, 'content', '')
-            history_tags = list(set(re.findall(r'#(\w+)', msg_content) + re.findall(r'(\w+)\s*태그', msg_content)))
-            if history_tags:
-                filter_tags = history_tags
-                break
+    # history 태그 상속 없음: 현재 쿼리에 명시된 태그만 사용
+    # (상속 시 무관한 후속 쿼리에도 이전 태그가 오염되는 문제 방지)
 
     search_query = _rewrite_query_standalone(query, history)
 

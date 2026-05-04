@@ -77,7 +77,7 @@ def sync_all():
             if path in existing_docs:
                 delete_ids.extend(existing_docs[path]["chunk_ids"])
         if delete_ids:
-            client.delete(collection_name=COLLECTION_NAME, points_selector=PointIdsList(ids=delete_ids))
+            client.delete(collection_name=COLLECTION_NAME, points_selector=PointIdsList(points=delete_ids))
             print(f"\n🗑️  {len(delete_ids)}개 청크 삭제 완료")
 
         for path in deleted_paths:
@@ -98,6 +98,10 @@ def sync_all():
         for doc in to_process:
             all_chunks.extend(chunk_document(doc))
         print(f"   → {len(to_process)}개 파일 → {len(all_chunks)}개 청크")
+
+        if not all_chunks:
+            print("   ⚠️  청크 없음 — 스킵")
+            return
 
         # 임베딩 생성 (파일명 + 청크 텍스트)
         print(f"\n   🧠 임베딩 생성 중...")

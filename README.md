@@ -11,19 +11,22 @@ Obsidian 노트를 RAG 시스템으로 변환해 GPT와 대화하는 웹 인터�
 ## 아키텍처
 
 ```
-사용자 질문
+사용자 브라우저 :3000
     │
     ▼
-[app.py] FastAPI :8001
-    ├─ 규칙 기반 독립/Follow-up 감지 (GPT 없음)
+[nginx] React + Vite + TypeScript (frontend)
+    │  SSE 프록시 → /api/*
+    ▼
+[app.py] FastAPI (내부 :8000)
+    ├─ 규칙 기반 독립/Follow-up 감지 (포함 관계·유사도·#태그 등)
     ├─ Redis 캐시 조회 → 히트 시 즉시 반환 (TTL 30분)
     │
     ▼ (미스 시)
 [rag/generator.py]
     ├─ Follow-up → GPT standalone rewrite → 벡터 검색
-    ├─ 태그 추출 → Elasticsearch 경로 필터
+    ├─ 태그 추출 → Elasticsearch 경로 필터 (대소문자 모두 매칭)
     ├─ Qdrant 청크 벡터 검색 (limit × 3 → 파일 단위 병합 → top-k)
-    ├─ 파일명 키워드 매칭 → 스코어 부스트 (파일명 일치 노트 상위 고정)
+    ├─ 파일명 키워드 매칭 → 스코어 부스트 (한국어·영어·일본어/CJK 대응)
     ├─ parent_text 기반 컨텍스트 구성 (max 110K 토큰)
     └─ GPT 답변 생성 → SSE 스트리밍 (첫 토큰 ~1초 이내)
     │
@@ -42,6 +45,7 @@ Obsidian 노트를 RAG 시스템으로 변환해 GPT와 대화하는 웹 인터�
 
 | 역할 | 기술 |
 |------|------|
+| Frontend | React 19 + Vite + TypeScript + Tailwind CSS v4 |
 | Web Framework | FastAPI (Python 3.11+) |
 | Vector DB | Qdrant Cloud |
 | Full-text Search | Elasticsearch 8.18 |
@@ -95,7 +99,7 @@ docker-compose logs -f sync
 ### 4. 접속
 
 ```
-http://localhost:8001
+http://localhost:3000
 ```
 
 ---
@@ -110,8 +114,8 @@ http://localhost:8001
 
 #### 태그 필터
 ```
-"#interview 태그 문서에서 면접 준비 방법 알려줘"
-→ interview 태그 문서만 검색
+"#RagChat 태그 문서에서 내용 요약해줘"
+→ RagChat 태그 문서만 검색
 ```
 
 #### Follow-up
@@ -155,6 +159,15 @@ ObsidianRagChat/
 ├── app.py                     # FastAPI 서버, 캐시/질문감지 라우팅
 ├── sync_documents.py          # 증분 동기화 (Hash 기반)
 │
+├── frontend/                  # React + Vite + TypeScript UI
+│   ├── src/
+│   │   ├── api/stream.ts      # SSE async generator
+│   │   ├── components/        # ChatMessage, ChatInput, SettingsBar 등
+│   │   ├── hooks/useChat.ts   # Zustand 상태 관리
+│   │   └── types/index.ts
+│   ├── nginx.conf             # SSE 프록시 + Docker DNS resolver
+│   └── package.json
+│
 ├── embed/
 │   ├── chunker.py             # 헤더 기반 청킹 + 슬라이딩 윈도우
 │   ├── embedder.py            # OpenAI 임베딩 (배치 인덱스 안전 처리)
@@ -174,12 +187,11 @@ ObsidianRagChat/
 │   └── clear_qdrant.py
 │
 ├── tests/
-│   └── test_question_detector.py
-│
-├── templates/
-│   └── chat.html
+│   ├── test_search_quality.py    # 태그·키워드·일본어 검색 품질 테스트
+│   └── test_example_scenario.py  # 5-query 캐시 시나리오 테스트
 │
 ├── docker-compose.yml
+├── Dockerfile.frontend
 ├── Dockerfile.web
 ├── Dockerfile.sync
 └── requirements.txt
@@ -192,7 +204,7 @@ ObsidianRagChat/
 ```bash
 # 캐시 초기화
 docker-compose exec web python scripts/clear_cache.py
-curl -X DELETE http://localhost:8001/api/cache
+curl -X DELETE http://localhost:3000/api/cache
 
 # Qdrant 초기화 (재동기화 필요 시)
 docker-compose run --rm sync python -c "from embed.vector_store import client, COLLECTION_NAME; client.delete_collection(COLLECTION_NAME)"
@@ -213,7 +225,7 @@ docker-compose exec web python -m pytest tests/ -v
 **검색 결과 없음**
 ```bash
 curl http://localhost:9201/_cluster/health
-curl http://localhost:8001/api/notes/count
+curl http://localhost:3000/api/notes/count
 ```
 
 **태그 필터 안 됨** — ES 인덱스 재생성 필요 (위 주요 명령어 참조)

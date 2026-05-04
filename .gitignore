@@ -41,3 +41,7 @@ test_*.json
 
 # Internal documents
 docs/
+
+# Frontend build artifacts
+frontend/node_modules/
+frontend/dist/

@@ -45,6 +45,12 @@ def is_independent_question(query: str, history: List) -> bool:
             print(f"🔄 Rephrase 감지 (유사도 {similarity:.0%}) → 독립 질문")
             return True
 
+        # 포함 관계: 한쪽이 다른쪽의 부분 문자열이면 같은 주제의 단축/확장형
+        # 예) "와인 추천" ⊆ "와인 추천해줘",  "Azure AI-102" ⊆ "#AI Azure AI-102"
+        if (query_normalized in prev_normalized or prev_normalized in query_normalized):
+            print(f"🔄 Rephrase 감지 (포함 관계) → 독립 질문")
+            return True
+
     # ===== 규칙 기반 사전 필터 (GPT 호출 전) =====
 
     # 1. #태그로 시작하면 → 무조건 독립 질문

@@ -1,7 +1,6 @@
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
+from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 from rag.generator import generate_answer_with_rag, generate_followup_answer, generate_answer_stream, generate_followup_stream
@@ -14,8 +13,12 @@ import json
 
 app = FastAPI(title="Obsidian RAG Search")
 
-# HTML 템플릿 설정
-templates = Jinja2Templates(directory="templates")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],  # Vite dev server
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class Message(BaseModel):
     role: str  # 'user' or 'assistant'
@@ -28,16 +31,6 @@ class QueryRequest(BaseModel):
     model: str = "gpt-4o-mini"  # 사용할 모델
     history: Optional[List[Message]] = []
 
-@app.get("/", response_class=HTMLResponse)
-async def home(request: Request):
-    """메인 페이지 (채팅 인터페이스)"""
-    return templates.TemplateResponse(request, "chat.html")
-
-@app.get("/favicon.ico")
-async def favicon():
-    """파비콘 제공"""
-    from fastapi.responses import FileResponse
-    return FileResponse("favicon.ico")
 
 @app.post("/api/search")
 async def search(query_request: QueryRequest):

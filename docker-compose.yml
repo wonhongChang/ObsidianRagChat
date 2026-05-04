@@ -1,5 +1,21 @@
 services:
   # ============================================
+  # React 프론트엔드 (nginx)
+  # ============================================
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: obsidian-rag-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - web
+    restart: unless-stopped
+    networks:
+      - obsidian-network
+
+  # ============================================
   # FastAPI 웹 서버
   # ============================================
   web:
@@ -7,9 +23,9 @@ services:
       context: .
       dockerfile: Dockerfile.web
     container_name: obsidian-rag-web
-    ports:
-      - "8001:8000"  # 외부:내부 (8000 포트 충돌 회피)
+    # 외부 포트 미노출 — nginx(frontend)가 내부 네트워크로 직접 프록시
     environment:
+      - TZ=Asia/Tokyo
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - QDRANT_URL=${QDRANT_URL}
       - QDRANT_API_KEY=${QDRANT_API_KEY}
@@ -42,6 +58,7 @@ services:
       dockerfile: Dockerfile.sync
     container_name: obsidian-rag-sync
     environment:
+      - TZ=Asia/Tokyo
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - QDRANT_URL=${QDRANT_URL}
       - QDRANT_API_KEY=${QDRANT_API_KEY}

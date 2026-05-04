@@ -28,13 +28,14 @@ def ensure_collection_exists(vector_size):
         )
         print(f"✅ '{COLLECTION_NAME}' 컬렉션 생성 완료")
         
-        # tags 필드에 대한 인덱스 생성
-        client.create_payload_index(
-            collection_name=COLLECTION_NAME,
-            field_name="tags",
-            field_schema=PayloadSchemaType.KEYWORD
-        )
-        print("✅ 태그 필드 인덱스 생성 완료")
+        # 필터링에 쓰이는 필드 인덱스 생성
+        for field in ("tags", "path"):
+            client.create_payload_index(
+                collection_name=COLLECTION_NAME,
+                field_name=field,
+                field_schema=PayloadSchemaType.KEYWORD
+            )
+        print("✅ 태그/경로 필드 인덱스 생성 완료")
 
 def get_existing_documents():
     """Qdrant에 있는 모든 청크를 path 기준으로 집계하여 반환.
@@ -111,7 +112,7 @@ def upload_vectors_incremental(documents, vectors):
         delete_ids = [existing_docs[path]["id"] for path in deleted_paths]
         client.delete(
             collection_name=COLLECTION_NAME,
-            points_selector=PointIdsList(ids=delete_ids)
+            points_selector=PointIdsList(points=delete_ids)
         )
         print(f"🗑️  {len(deleted_paths)}개 파일 삭제 완료")
     
