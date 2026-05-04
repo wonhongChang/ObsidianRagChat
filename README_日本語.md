@@ -187,7 +187,8 @@ ObsidianRagChat/
 │   └── clear_qdrant.py
 │
 ├── tests/
-│   └── test_question_detector.py
+│   ├── test_question_detector.py  # 質問判定ユニットテスト (24件)
+│   └── README.md
 │
 ├── docker-compose.yml
 ├── Dockerfile.frontend
@@ -215,6 +216,9 @@ docker-compose restart sync
 
 # テスト
 docker-compose exec web python -m pytest tests/ -v
+
+# フロントエンド更新後の再ビルド
+docker-compose up -d --build --force-recreate frontend
 ```
 
 ---

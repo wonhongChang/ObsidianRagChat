@@ -187,8 +187,8 @@ ObsidianRagChat/
 │   └── clear_qdrant.py
 │
 ├── tests/
-│   ├── test_search_quality.py    # 태그·키워드·일본어 검색 품질 테스트
-│   └── test_example_scenario.py  # 5-query 캐시 시나리오 테스트
+│   ├── test_question_detector.py  # 질문 감지 유닛 테스트 (24개)
+│   └── README.md
 │
 ├── docker-compose.yml
 ├── Dockerfile.frontend
