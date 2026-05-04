@@ -11,26 +11,31 @@ ObsidianノートをRAGシステムに変換してGPTと対話するWebインタ
 ## アーキテクチャ
 
 ```
-ユーザー質問
+ユーザーブラウザ :3000
     │
     ▼
-[app.py] FastAPI :8001
-    ├─ ルールベース 独立/フォローアップ判定 (GPT不使用)
+[nginx] React + Vite + TypeScript (frontend)
+    │  SSEプロキシ → /api/*
+    ▼
+[app.py] FastAPI (内部 :8000)
+    ├─ ルールベース 独立/フォローアップ判定 (包含関係・類似度・#タグ等)
     ├─ Redisキャッシュ確認 → ヒット時は即座に返却 (TTL 30分)
     │
     ▼ (ミス時)
 [rag/generator.py]
     ├─ フォローアップ → GPT standalone rewrite → ベクトル検索
-    ├─ タグ抽出 → Elasticsearch パスフィルタ
+    ├─ タグ抽出 → Elasticsearch パスフィルタ (大文字・小文字両対応)
     ├─ Qdrant チャンクベクトル検索 (limit × 3 → ファイル単位マージ → top-k)
+    ├─ ファイル名キーワードマッチング → スコアブースト (日本語/CJK対応)
     ├─ parent_text ベースのコンテキスト構成 (max 110K トークン)
-    └─ GPT-4o-mini / GPT-5-mini 回答生成
+    └─ GPT回答生成 → SSEストリーミング (初回トークン ~1秒以内)
     │
     ▼
 [sync_documents.py] 10分周期
     ├─ MD5ハッシュベース変更検出
     ├─ ヘッダーベースチャンキング (512トークン、50 overlap)
-    ├─ Qdrant チャンク upsert
+    ├─ "ファイル名: {name}\n{text}" 形式で埋め込み (ファイル名の意味を反映)
+    ├─ Qdrant 100チャンクバッチ upsert
     └─ Elasticsearch ファイル単位 bulk index
 ```
 
@@ -40,12 +45,13 @@ ObsidianノートをRAGシステムに変換してGPTと対話するWebインタ
 
 | 役割 | 技術 |
 |------|------|
+| Frontend | React 19 + Vite + TypeScript + Tailwind CSS v4 |
 | Web Framework | FastAPI (Python 3.11+) |
 | Vector DB | Qdrant Cloud |
 | Full-text Search | Elasticsearch 8.18 |
 | Cache | Redis 7.2 (TTL 30分) |
-| LLM | GPT-4o-mini / GPT-5-mini |
-| Embedding | text-embedding-3-small (1536dim) |
+| LLM | GPT-4o-mini / GPT-5-mini (設定可能) |
+| Embedding | text-embedding-3-small (1536dim、ファイル名prefix含む) |
 | Container | Docker + Docker Compose |
 
 ---
@@ -93,7 +99,7 @@ docker-compose logs -f sync
 ### 4. アクセス
 
 ```
-http://localhost:8001
+http://localhost:3000
 ```
 
 ---
@@ -108,8 +114,8 @@ http://localhost:8001
 
 #### タグフィルター
 ```
-"#interview タグの文書から面接準備方法を教えて"
-→ interview タグの文書のみ検索
+"#RagChat タグの文書を要約して"
+→ RagChat タグの文書のみ検索
 ```
 
 #### フォローアップ
@@ -125,7 +131,8 @@ http://localhost:8001
 
 | Method | Endpoint | 説明 |
 |--------|----------|------|
-| `POST` | `/api/search` | RAG検索 (メイン) |
+| `POST` | `/api/search` | RAG検索 (全体レスポンス返却) |
+| `POST` | `/api/search/stream` | RAG検索 SSEストリーミング |
 | `DELETE` | `/api/cache` | キャッシュ全削除 |
 | `GET` | `/api/cache/stats` | キャッシュ統計 |
 | `GET` | `/api/notes/count` | 全ノート数 |
@@ -152,6 +159,15 @@ ObsidianRagChat/
 ├── app.py                     # FastAPIサーバー、キャッシュ/質問判定ルーティング
 ├── sync_documents.py          # 増分同期 (ハッシュベース)
 │
+├── frontend/                  # React + Vite + TypeScript UI
+│   ├── src/
+│   │   ├── api/stream.ts      # SSE async generator
+│   │   ├── components/        # ChatMessage, ChatInput, SettingsBar 等
+│   │   ├── hooks/useChat.ts   # Zustand 状態管理
+│   │   └── types/index.ts
+│   ├── nginx.conf             # SSEプロキシ + Docker DNS resolver
+│   └── package.json
+│
 ├── embed/
 │   ├── chunker.py             # ヘッダーベースチャンキング + スライディングウィンドウ
 │   ├── embedder.py            # OpenAI埋め込み (バッチインデックス安全処理)
@@ -173,10 +189,8 @@ ObsidianRagChat/
 ├── tests/
 │   └── test_question_detector.py
 │
-├── templates/
-│   └── chat.html
-│
 ├── docker-compose.yml
+├── Dockerfile.frontend
 ├── Dockerfile.web
 ├── Dockerfile.sync
 └── requirements.txt
@@ -189,10 +203,10 @@ ObsidianRagChat/
 ```bash
 # キャッシュ初期化
 docker-compose exec web python scripts/clear_cache.py
-curl -X DELETE http://localhost:8001/api/cache
+curl -X DELETE http://localhost:3000/api/cache
 
 # Qdrant初期化 (再同期が必要な場合)
-docker-compose exec web python scripts/clear_qdrant.py
+docker-compose run --rm sync python -c "from embed.vector_store import client, COLLECTION_NAME; client.delete_collection(COLLECTION_NAME)"
 docker-compose restart sync
 
 # ESインデックス再作成 (lowercase_normalizer適用)
@@ -210,7 +224,7 @@ docker-compose exec web python -m pytest tests/ -v
 **検索結果なし**
 ```bash
 curl http://localhost:9201/_cluster/health
-curl http://localhost:8001/api/notes/count
+curl http://localhost:3000/api/notes/count
 ```
 
 **タグフィルターが効かない** — ESインデックスの再作成が必要 (上記コマンド参照)
