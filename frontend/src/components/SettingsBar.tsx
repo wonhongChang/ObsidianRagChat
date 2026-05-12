@@ -1,4 +1,4 @@
-import type { ChatSettings } from '../types';
+import type { ChatModel, ChatSettings } from '../types';
 
 interface Props {
   settings: ChatSettings;
@@ -10,9 +10,11 @@ interface Props {
 const MODELS = [
   { value: 'gpt-4o-mini', label: 'GPT-4o-mini' },
   { value: 'gpt-5-mini', label: 'GPT-5-mini' },
-];
+] satisfies Array<{ value: ChatModel; label: string }>;
 
 export function SettingsBar({ settings, onChange, notesCount, onClear }: Props) {
+  const maxTopK = Math.min(notesCount || 50, 50);
+
   const topKLabel = () => {
     if (settings.topK < 5) return '↑ 권장 5개';
     if (settings.topK === 5) return '⚡ 권장 5개';
@@ -35,9 +37,13 @@ export function SettingsBar({ settings, onChange, notesCount, onClear }: Props) 
           <input
             type="number"
             min={1}
-            max={notesCount || 999}
+            max={maxTopK}
             value={settings.topK}
-            onChange={(e) => onChange({ ...settings, topK: Number(e.target.value) })}
+            onChange={(e) => {
+              const value = Number(e.target.value);
+              const topK = Number.isFinite(value) ? Math.min(Math.max(value, 1), maxTopK) : 5;
+              onChange({ ...settings, topK });
+            }}
             className="w-14 px-1.5 py-0.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-center"
           />
           <span className={`whitespace-nowrap ${
@@ -54,7 +60,7 @@ export function SettingsBar({ settings, onChange, notesCount, onClear }: Props) 
         <div className="flex items-center gap-1.5">
           <select
             value={settings.model}
-            onChange={(e) => onChange({ ...settings, model: e.target.value })}
+            onChange={(e) => onChange({ ...settings, model: e.target.value as ChatModel })}
             className="px-1.5 py-0.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800"
           >
             {MODELS.map((m) => (

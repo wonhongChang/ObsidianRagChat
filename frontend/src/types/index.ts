@@ -26,8 +26,10 @@ export interface TokenUsage {
   total_tokens: number;
 }
 
+export type ChatModel = 'gpt-4o-mini' | 'gpt-5-mini';
+
 export interface ChatSettings {
   topK: number;
   ignoreTokenLimit: boolean;
-  model: string;
+  model: ChatModel;
 }

@@ -17,7 +17,7 @@ export default function App() {
 
   useEffect(() => {
     loadNotesCount();
-  }, []);
+  }, [loadNotesCount]);
 
   const handleClear = () => {
     if (messages.length === 0) return;

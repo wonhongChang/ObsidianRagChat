@@ -43,6 +43,11 @@ def load_markdown_files(vault_path: str = VAULT_PATH):
     Returns:
         list: [{"text": str, "filename": str, "path": str, "tags": list, "mtime": float, "hash": str}, ...]
     """
+    if not vault_path:
+        raise ValueError("VAULT_PATH 환경변수가 설정되지 않았습니다.")
+    if not os.path.isdir(vault_path):
+        raise FileNotFoundError(f"Obsidian vault 경로를 찾을 수 없습니다: {vault_path}")
+
     documents = []
     for root, _, files in os.walk(vault_path):
         for f in files:

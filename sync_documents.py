@@ -14,6 +14,14 @@ from search.document_index import index_documents_bulk, delete_document
 # ============================================
 INTERVAL_SECONDS = int(os.getenv("INTERVAL_SECONDS", "600"))   # 10분 (600초)
 
+def clear_cache_safely():
+    """문서 변경 후 Redis 캐시를 비우되, 실패해도 동기화 결과는 보존한다."""
+    try:
+        from search.cache import clear_all_cache
+        clear_all_cache()
+    except Exception as e:
+        print(f"⚠️  캐시 초기화 실패 (동기화는 유지): {e}")
+
 # ============================================
 # 변경 감지 및 동기화
 # ============================================
@@ -64,10 +72,6 @@ def sync_all():
         print("\n✅ 변경사항이 없습니다.")
         print(f"{'='*70}")
         return
-
-    # 문서 변경 감지 시 캐시 전체 초기화
-    from search.cache import clear_all_cache
-    clear_all_cache()
 
     # 7. 삭제된 파일 + 수정된 파일의 기존 청크 삭제
     paths_to_delete_chunks = deleted_paths | {doc["path"] for doc in updated_files}
@@ -143,6 +147,9 @@ def sync_all():
         index_documents_bulk(to_process)
 
         print(f"\n✅ {len(to_process)}개 파일 ({len(all_chunks)}개 청크) 처리 완료")
+
+    # 문서 인덱싱이 반영된 뒤 오래된 RAG 응답 캐시를 무효화한다.
+    clear_cache_safely()
 
     print(f"{'='*70}")
 

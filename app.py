@@ -1,14 +1,17 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Literal
 from rag.generator import generate_answer_with_rag, generate_followup_answer, generate_answer_stream, generate_followup_stream
 from search.cache import get_cached_rag, set_cached_rag, clear_all_cache, get_cache_stats, normalize_query
 from search.question_detector import is_independent_question, save_query
 import uvicorn
 import hashlib
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Obsidian RAG Search")
 
@@ -24,10 +27,10 @@ class Message(BaseModel):
     content: str
 
 class QueryRequest(BaseModel):
-    query: str
-    top_k: int = 5  # 기본값 5개 (성능 최적화)
+    query: str = Field(min_length=1, max_length=4000)
+    top_k: int = Field(default=5, ge=1, le=50)  # 기본값 5개 (성능 최적화)
     ignore_token_limit: bool = False  # 토큰 제한 무시 옵션
-    model: str = "gpt-4o-mini"  # 사용할 모델
+    model: Literal["gpt-4o-mini", "gpt-5-mini"] = "gpt-4o-mini"  # 사용할 모델
     history: List[Message] = Field(default_factory=list)
 
 
@@ -145,10 +148,8 @@ async def search(query_request: QueryRequest):
             "independent_question": is_independent  # 디버깅용
         }
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e)
-        }
+        logger.exception("RAG search failed")
+        raise HTTPException(status_code=500, detail="RAG search failed") from e
 
 @app.post("/api/search/stream")
 async def search_stream(query_request: QueryRequest):
