@@ -1,6 +1,6 @@
 # Obsidian RAG Chat
 
-Obsidian 노트를 RAG 시스템으로 변환해 GPT와 대화하는 웹 인터페이스.
+Obsidian 노트를 RAG 검색 시스템으로 동기화하고, GPT와 대화하듯 질의할 수 있는 웹 인터페이스입니다.
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?logo=docker&logoColor=white)](https://www.docker.com/)
@@ -10,33 +10,33 @@ Obsidian 노트를 RAG 시스템으로 변환해 GPT와 대화하는 웹 인터�
 
 ## 아키텍처
 
-```
+```text
 사용자 브라우저 :3000
-    │
-    ▼
+    |
+    v
 [nginx] React + Vite + TypeScript (frontend)
-    │  SSE 프록시 → /api/*
-    ▼
+    |  SSE 프록시 -> /api/*
+    v
 [app.py] FastAPI (내부 :8000)
-    ├─ 규칙 기반 독립/Follow-up 감지 (포함 관계·유사도·#태그 등)
-    ├─ Redis 캐시 조회 → 히트 시 즉시 반환 (TTL 30분)
-    │
-    ▼ (미스 시)
+    |- 규칙 기반 독립 질문 / Follow-up 판별
+    |- Redis 캐시 조회 -> 히트 시 즉시 반환 (TTL 30분)
+    |
+    v
 [rag/generator.py]
-    ├─ Follow-up → GPT standalone rewrite → 벡터 검색
-    ├─ 태그 추출 → Elasticsearch 경로 필터 (대소문자 모두 매칭)
-    ├─ Qdrant 청크 벡터 검색 (limit × 3 → 파일 단위 병합 → top-k)
-    ├─ 파일명 키워드 매칭 → 스코어 부스트 (한국어·영어·일본어/CJK 대응)
-    ├─ parent_text 기반 컨텍스트 구성 (max 110K 토큰)
-    └─ GPT 답변 생성 → SSE 스트리밍 (첫 토큰 ~1초 이내)
-    │
-    ▼
-[sync_documents.py] 10분 주기
-    ├─ MD5 해시 기반 변경 감지
-    ├─ 헤더 기반 청킹 (512 토큰, 50 overlap)
-    ├─ "파일명: {name}\n{text}" 형식으로 임베딩 (파일명 의미 반영)
-    ├─ Qdrant 100청크 배치 upsert
-    └─ Elasticsearch 파일 단위 bulk index
+    |- Follow-up 질문 -> GPT standalone rewrite -> 벡터 검색
+    |- 태그 추출 -> Elasticsearch 경로 필터
+    |- Qdrant 청크 벡터 검색 -> 파일 단위 병합 -> top-k
+    |- 파일명 키워드 매칭 보강 (한국어/일본어/CJK 대응)
+    |- parent_text 기반 컨텍스트 구성 (기본 max 110K 토큰)
+    |- GPT 답변 생성 및 SSE 스트리밍
+    |
+    v
+[sync_documents.py] 10분 주기 동기화
+    |- MD5 해시 기반 변경 감지
+    |- 헤더 기반 청킹 (512 토큰, 50 overlap)
+    |- "파일명: {name}\n{text}" 형식으로 임베딩
+    |- Qdrant 100청크 단위 upsert
+    |- Elasticsearch 파일 단위 bulk index
 ```
 
 ---
@@ -50,8 +50,8 @@ Obsidian 노트를 RAG 시스템으로 변환해 GPT와 대화하는 웹 인터�
 | Vector DB | Qdrant Cloud |
 | Full-text Search | Elasticsearch 8.18 |
 | Cache | Redis 7.2 (TTL 30분) |
-| LLM | GPT-4o-mini / GPT-5-mini (설정 가능) |
-| Embedding | text-embedding-3-small (1536dim, 파일명 prefix 포함) |
+| LLM | GPT-4o-mini / GPT-5-mini |
+| Embedding | text-embedding-3-small (1536 dim, 파일명 prefix 포함) |
 | Container | Docker + Docker Compose |
 
 ---
@@ -67,23 +67,23 @@ cd ObsidianRagChat
 
 ### 2. 환경 변수 설정
 
-`.env` 파일 생성:
+`.env` 파일을 만들고 아래 값을 채웁니다.
 
 ```bash
 # 필수
-OPENAI_API_KEY=sk-...
+OPENAI_API_KEY=your_openai_api_key_here
 QDRANT_URL=https://your-cluster.cloud.qdrant.io:6333
-QDRANT_API_KEY=your-qdrant-api-key
+QDRANT_API_KEY=replace_me
 OBSIDIAN_VAULT_PATH=/path/to/your/obsidian/vault
 
-# Docker 내부 서비스 (변경 불필요)
+# Docker 내부 서비스 (기본값 그대로 사용 가능)
 ELASTICSEARCH_HOST=http://elasticsearch:9200
 REDIS_HOST=redis
 REDIS_PORT=6379
 
 # 선택
-CACHE_TTL=1800        # Redis TTL (초, 기본 30분)
-INTERVAL_SECONDS=600  # 동기화 주기 (초, 기본 10분)
+CACHE_TTL=1800
+INTERVAL_SECONDS=600
 ```
 
 ### 3. 실행
@@ -98,32 +98,38 @@ docker-compose logs -f sync
 
 ### 4. 접속
 
-```
+```text
 http://localhost:3000
 ```
 
 ---
 
-## 사용 방법
+## 사용 예시
 
-#### 일반 질문
-```
+### 일반 질문
+
+```text
 "Obsidian RAG Chat의 동기화 방식 알려줘"
-→ 전체 노트 벡터 검색 (기본 top_k=5)
 ```
 
-#### 태그 필터
-```
-"#RagChat 태그 문서에서 내용 요약해줘"
-→ RagChat 태그 문서만 검색
+전체 노트에서 관련 청크를 벡터 검색하고, 파일 단위로 병합한 뒤 답변합니다.
+
+### 태그 필터
+
+```text
+"#RagChat 태그 문서를 요약해줘"
 ```
 
-#### Follow-up
-```
+Elasticsearch로 태그가 일치하는 문서 경로를 먼저 좁힌 뒤 Qdrant 벡터 검색을 수행합니다.
+
+### Follow-up 질문
+
+```text
 질문1: "Redis 캐싱 전략 설명해줘"
-질문2: "그럼 TTL은 어떻게 설정해?"
-→ 히스토리 기반 standalone rewrite 후 검색
+질문2: "그럼 TTL은 어떻게 정해?"
 ```
+
+후속 질문은 최근 대화 히스토리를 참고해 standalone 검색 쿼리로 재작성한 뒤 검색합니다.
 
 ---
 
@@ -131,14 +137,14 @@ http://localhost:3000
 
 | Method | Endpoint | 설명 |
 |--------|----------|------|
-| `POST` | `/api/search` | RAG 검색 (전체 응답 반환) |
-| `POST` | `/api/search/stream` | RAG 검색 SSE 스트리밍 |
-| `DELETE` | `/api/cache` | 캐시 전체 삭제 |
-| `GET` | `/api/cache/stats` | 캐시 통계 |
-| `GET` | `/api/notes/count` | 전체 노트 수 |
+| `POST` | `/api/search` | RAG 검색 후 전체 답변 반환 |
+| `POST` | `/api/search/stream` | RAG 검색 후 SSE 스트리밍 |
+| `DELETE` | `/api/cache` | Redis 캐시 전체 삭제 |
+| `GET` | `/api/cache/stats` | Redis 캐시 통계 |
+| `GET` | `/api/notes/count` | 인덱싱된 노트 수 |
 | `GET` | `/health` | 헬스 체크 |
 
-**POST /api/search 요청 파라미터:**
+### `POST /api/search` 요청 예시
 
 ```json
 {
@@ -154,68 +160,57 @@ http://localhost:3000
 
 ## 프로젝트 구조
 
-```
+```text
 ObsidianRagChat/
-├── app.py                     # FastAPI 서버, 캐시/질문감지 라우팅
-├── sync_documents.py          # 증분 동기화 (Hash 기반)
-│
-├── frontend/                  # React + Vite + TypeScript UI
-│   ├── src/
-│   │   ├── api/stream.ts      # SSE async generator
-│   │   ├── components/        # ChatMessage, ChatInput, SettingsBar 등
-│   │   ├── hooks/useChat.ts   # Zustand 상태 관리
-│   │   └── types/index.ts
-│   ├── nginx.conf             # SSE 프록시 + Docker DNS resolver
-│   └── package.json
-│
-├── embed/
-│   ├── chunker.py             # 헤더 기반 청킹 + 슬라이딩 윈도우
-│   ├── embedder.py            # OpenAI 임베딩 (배치 인덱스 안전 처리)
-│   ├── document_loader.py     # 마크다운 로더
-│   └── vector_store.py        # Qdrant 클라이언트
-│
-├── rag/
-│   └── generator.py           # 검색 + 컨텍스트 구성 + GPT 호출
-│
-├── search/
-│   ├── document_index.py      # Elasticsearch (lowercase_normalizer)
-│   ├── cache.py               # Redis 캐싱 + 쿼리 정규화
-│   └── question_detector.py   # 독립/Follow-up 감지 (규칙 기반)
-│
-├── scripts/
-│   ├── clear_cache.py         # Redis 캐시 초기화
-│   ├── clear_qdrant.py        # Qdrant 컬렉션 초기화
-│   └── add_qdrant_index.py    # path 필드 인덱스 추가 (최초 1회)
-│
-├── tests/
-│   ├── test_question_detector.py  # 질문 감지 유닛 테스트 (24개)
-│   └── README.md
-│
-├── docker-compose.yml
-├── Dockerfile.frontend
-├── Dockerfile.web
-├── Dockerfile.sync
-└── requirements.txt
+|- app.py                    # FastAPI 서버, 캐시, 질문 판별 라우팅
+|- sync_documents.py         # 증분 동기화 배치
+|- frontend/                 # React + Vite + TypeScript UI
+|  |- src/api/stream.ts      # SSE async generator
+|  |- src/components/        # Chat UI 컴포넌트
+|  |- src/hooks/useChat.ts   # Zustand 상태 관리
+|  |- nginx.conf             # SSE 프록시 설정
+|- embed/
+|  |- chunker.py             # 헤더 기반 청킹
+|  |- document_loader.py     # Obsidian Markdown 로더
+|  |- embedder.py            # OpenAI 임베딩 배치 처리
+|  |- vector_store.py        # Qdrant 클라이언트
+|- rag/
+|  |- generator.py           # 검색, 컨텍스트 구성, GPT 호출
+|- search/
+|  |- cache.py               # Redis 캐시
+|  |- document_index.py      # Elasticsearch 인덱싱
+|  |- question_detector.py   # 독립 질문 / Follow-up 규칙 판별
+|- scripts/
+|  |- clear_cache.py         # Redis 캐시 초기화
+|  |- clear_qdrant.py        # Qdrant 컬렉션 초기화
+|  |- add_qdrant_index.py    # Qdrant payload index 추가
+|- tests/
+|  |- test_question_detector.py
+|- docker-compose.yml
+|- Dockerfile.frontend
+|- Dockerfile.web
+|- Dockerfile.sync
+|- requirements.txt
 ```
 
 ---
 
-## 주요 명령어
+## 주요 명령
 
 ```bash
-# 캐시 초기화
+# Redis 캐시 초기화
 docker-compose exec web python scripts/clear_cache.py
 curl -X DELETE http://localhost:3000/api/cache
 
-# Qdrant 초기화 (재동기화 필요 시)
+# Qdrant 컬렉션 초기화 후 재동기화
 docker-compose exec web python scripts/clear_qdrant.py
 docker-compose restart sync
 
-# ES 인덱스 재생성 (lowercase_normalizer 적용)
+# Elasticsearch 인덱스 재생성
 curl -X DELETE http://localhost:9201/obsidian_notes
 docker-compose restart sync
 
-# 프론트엔드 코드 변경 후 재빌드
+# 프론트엔드 재빌드
 docker-compose up -d --build --force-recreate frontend
 
 # 테스트
@@ -226,25 +221,33 @@ docker-compose exec web python -m pytest tests/ -v
 
 ## 트러블슈팅
 
-**검색 결과 없음**
+### 검색 결과가 없을 때
+
 ```bash
 curl http://localhost:9201/_cluster/health
 curl http://localhost:3000/api/notes/count
+docker-compose logs -f sync
 ```
 
-**태그 필터 안 됨** — ES 인덱스 재생성 필요 (위 주요 명령어 참조)
+### 태그 필터 결과가 이상할 때
 
-**응답 느림** — `rag_query.log` 에서 병목 확인, top_k 줄이기
+Elasticsearch 인덱스 mapping 변경은 기존 인덱스에 소급 적용되지 않습니다. 인덱스를 삭제하고 `sync` 서비스를 다시 시작하세요.
 
-**Docker 빌드 실패**
 ```bash
-docker-compose build --no-cache
-docker-compose down -v && docker-compose up -d
+curl -X DELETE http://localhost:9201/obsidian_notes
+docker-compose restart sync
 ```
+
+### 답변이 느릴 때
+
+- `top_k` 값을 낮춥니다.
+- `ignore_token_limit` 옵션을 끕니다.
+- `rag_query.log`에서 검색/컨텍스트 구성 시간을 확인합니다.
 
 ---
 
 ## 보안
 
-- `.env` 파일은 절대 커밋하지 마세요 (`.gitignore` 포함됨)
-- `OPENAI_API_KEY`, `QDRANT_API_KEY` 외부 노출 금지
+- `.env` 파일은 커밋하지 마세요. `.gitignore`에 포함되어 있습니다.
+- `OPENAI_API_KEY`, `QDRANT_API_KEY`는 외부에 노출하지 마세요.
+- 개인 Obsidian vault 경로와 노트 원문이 로그에 과도하게 남지 않도록 운영 환경에서는 로그 레벨을 조정하는 것을 권장합니다.

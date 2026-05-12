@@ -215,7 +215,32 @@ def search_relevant_notes(query: str, limit: int = 5, filter_tags: list = None):
     logger.info(f"📄 최종 반환 파일: {[r.payload.get('filename') for r in unique_results]}")
     return unique_results
 
-def generate_answer_with_rag(query: str, top_k: int = 359, ignore_token_limit: bool = False, model: str = "gpt-4o-mini"):
+
+def _extract_responses_text(response, label: str = "Responses API") -> str:
+    """Responses API 응답에서 출력 텍스트만 안전하게 추출."""
+    if hasattr(response, 'output_text') and response.output_text:
+        return response.output_text
+
+    output = getattr(response, 'output', None)
+    if output:
+        for item in output:
+            if getattr(item, 'type', None) != 'message':
+                continue
+
+            content = getattr(item, 'content', None)
+            if isinstance(content, str) and content:
+                return content
+            if isinstance(content, list):
+                for part in content:
+                    text = getattr(part, 'text', None)
+                    if text:
+                        return text
+
+    logger.error(f"❌ {label}에서 답변 텍스트를 찾을 수 없습니다.")
+    return "⚠️ GPT-5-mini 응답을 파싱할 수 없습니다."
+
+
+def generate_answer_with_rag(query: str, top_k: int = 5, ignore_token_limit: bool = False, model: str = "gpt-4o-mini"):
     """
     Qdrant에서 관련 노트를 검색하고 GPT를 사용해 답변 생성
 
@@ -385,9 +410,7 @@ def generate_answer_with_rag(query: str, top_k: int = 359, ignore_token_limit: b
             max_output_tokens=4000  # reasoning_tokens(~1000) + 실제 답변(~3000)
         )
         
-        # Responses API는 다른 구조로 응답
-        logger.info(f"🔍 [Responses API] response type: {type(response)}")
-        logger.info(f"🔍 [Responses API] response: {response}")
+        logger.info(f"🔍 [Responses API] response type: {type(response).__name__}")
         
     else:
         # GPT-4o-mini는 Chat Completions API 사용
@@ -405,52 +428,7 @@ def generate_answer_with_rag(query: str, top_k: int = 359, ignore_token_limit: b
     
     # 응답 처리 - API별로 다른 구조
     if model == "gpt-5-mini":
-        # Responses API 응답 처리
-        logger.info(f"🔍 [Responses API] 응답 구조:")
-        logger.info(f"   - response type: {type(response)}")
-        logger.info(f"   - response attributes: {dir(response)}")
-        
-        # output_text 직접 접근 시도
-        if hasattr(response, 'output_text'):
-            answer = response.output_text
-            logger.info(f"✅ output_text 발견: '{answer[:100]}...'")
-        
-        # output 배열 확인
-        elif hasattr(response, 'output'):
-            logger.info(f"🔍 output 배열 확인: {len(response.output)}개 항목")
-            answer = None
-            
-            for i, item in enumerate(response.output):
-                logger.info(f"   - output[{i}] type: {item.type if hasattr(item, 'type') else 'N/A'}")
-                
-                # message 타입 찾기
-                if hasattr(item, 'type') and item.type == 'message':
-                    if hasattr(item, 'content'):
-                        logger.info(f"   - message content: {item.content}")
-                        # content는 배열일 수 있음
-                        if isinstance(item.content, list) and len(item.content) > 0:
-                            if hasattr(item.content[0], 'text'):
-                                answer = item.content[0].text
-                                logger.info(f"✅ message.content[0].text 발견!")
-                            elif hasattr(item.content[0], 'type') and item.content[0].type == 'output_text':
-                                answer = item.content[0].text
-                                logger.info(f"✅ output_text 타입 발견!")
-                        elif isinstance(item.content, str):
-                            answer = item.content
-                            logger.info(f"✅ message.content (string) 발견!")
-                    break
-            
-            if not answer:
-                logger.error(f"❌ Responses API에서 답변을 찾을 수 없습니다.")
-                logger.info(f"   - 전체 response dump: {response.model_dump() if hasattr(response, 'model_dump') else response}")
-                answer = "⚠️ GPT-5-mini 응답을 파싱할 수 없습니다. 로그를 확인하세요."
-        
-        else:
-            logger.error(f"❌ 알 수 없는 Responses API 구조")
-            logger.info(f"   - response: {response}")
-            answer = "⚠️ GPT-5-mini 응답 구조를 인식할 수 없습니다."
-        
-        # usage 정보 추출
+        answer = _extract_responses_text(response, "Responses API")
         usage = response.usage if hasattr(response, 'usage') else None
         
     else:
@@ -588,14 +566,14 @@ Follow-up 질문: {query}
         return query
 
 
-def generate_followup_answer(query: str, history: list, top_k: int = 359, ignore_token_limit: bool = False, model: str = "gpt-4o-mini"):
+def generate_followup_answer(query: str, history: list, top_k: int = 5, ignore_token_limit: bool = False, model: str = "gpt-4o-mini"):
     """
     이전 대화 히스토리를 바탕으로 follow-up 질문에 답변
 
     Args:
         query: 사용자의 follow-up 질문
         history: 이전 대화 히스토리 [{"role": "user|assistant", "content": "..."}]
-        top_k: 검색할 관련 노트 개수 (기본값 359개 = 전체)
+        top_k: 검색할 관련 노트 개수 (기본값 5개)
 
     Returns:
         dict: 답변 및 관련 정보
@@ -771,27 +749,7 @@ def generate_followup_answer(query: str, history: list, top_k: int = 359, ignore
     
     # 응답 처리 - API별로 다른 구조 (generate_answer_with_rag와 동일)
     if model == "gpt-5-mini":
-        # Responses API 응답 처리
-        logger.info(f"🔍 [Follow-up Responses API] 응답 처리")
-        
-        if hasattr(response, 'output_text'):
-            answer = response.output_text
-        elif hasattr(response, 'output'):
-            answer = None
-            for item in response.output:
-                if hasattr(item, 'type') and item.type == 'message':
-                    if hasattr(item, 'content'):
-                        if isinstance(item.content, list) and len(item.content) > 0:
-                            if hasattr(item.content[0], 'text'):
-                                answer = item.content[0].text
-                        elif isinstance(item.content, str):
-                            answer = item.content
-                    break
-            if not answer:
-                answer = "⚠️ GPT-5-mini 응답을 파싱할 수 없습니다."
-        else:
-            answer = "⚠️ GPT-5-mini 응답 구조를 인식할 수 없습니다."
-        
+        answer = _extract_responses_text(response, "Follow-up Responses API")
         usage = response.usage if hasattr(response, 'usage') else None
         
     else:

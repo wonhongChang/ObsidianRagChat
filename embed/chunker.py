@@ -51,6 +51,22 @@ def chunk_document(doc: dict) -> list:
     text = doc["text"]
     raw_chunks = _chunk_by_headers(text, MAX_CHUNK_TOKENS)
 
+    def make_chunk(chunk_text: str, chunk_index: int) -> dict:
+        chunk_id_str = f"{doc['path']}::chunk::{chunk_index}"
+        point_id = int(hashlib.md5(chunk_id_str.encode()).hexdigest(), 16) % (2 ** 63)
+        return {
+            "path": doc["path"],
+            "filename": doc["filename"],
+            "tags": doc["tags"],
+            "mtime": doc["mtime"],
+            "hash": doc["hash"],
+            "section": _extract_section_title(chunk_text),
+            "chunk_index": chunk_index,
+            "chunk_text": chunk_text,
+            "parent_text": text[:4000],
+            "point_id": point_id,
+        }
+
     result = []
     for i, chunk_text in enumerate(raw_chunks):
         if not chunk_text.strip():
@@ -58,19 +74,10 @@ def chunk_document(doc: dict) -> list:
         if _count_tokens(chunk_text) < MIN_CHUNK_TOKENS:
             continue
 
-        chunk_id_str = f"{doc['path']}::chunk::{i}"
-        point_id = int(hashlib.md5(chunk_id_str.encode()).hexdigest(), 16) % (2 ** 63)
+        result.append(make_chunk(chunk_text, i))
 
-        result.append({
-            "path": doc["path"],
-            "filename": doc["filename"],
-            "tags": doc["tags"],
-            "mtime": doc["mtime"],
-            "hash": doc["hash"],
-            "section": _extract_section_title(chunk_text),
-            "chunk_index": i,
-            "chunk_text": chunk_text,
-            "parent_text": text[:4000],
-            "point_id": point_id,
-        })
+    if not result and text.strip():
+        # 짧은 노트도 변경 감지 상태가 안정되도록 최소 1개 청크는 생성한다.
+        result.append(make_chunk(text.strip(), 0))
+
     return result

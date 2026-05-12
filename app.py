@@ -1,12 +1,11 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import List, Optional
+from pydantic import BaseModel, Field
+from typing import List
 from rag.generator import generate_answer_with_rag, generate_followup_answer, generate_answer_stream, generate_followup_stream
 from search.cache import get_cached_rag, set_cached_rag, clear_all_cache, get_cache_stats, normalize_query
 from search.question_detector import is_independent_question, save_query
-import os
 import uvicorn
 import hashlib
 import json
@@ -29,7 +28,7 @@ class QueryRequest(BaseModel):
     top_k: int = 5  # 기본값 5개 (성능 최적화)
     ignore_token_limit: bool = False  # 토큰 제한 무시 옵션
     model: str = "gpt-4o-mini"  # 사용할 모델
-    history: Optional[List[Message]] = []
+    history: List[Message] = Field(default_factory=list)
 
 
 @app.post("/api/search")

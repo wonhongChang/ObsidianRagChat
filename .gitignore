@@ -36,6 +36,7 @@ check_duplicates.py
 
 # Data and test results
 data/
+private/
 result*.json
 test_*.json
 

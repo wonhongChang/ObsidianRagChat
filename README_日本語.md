@@ -71,9 +71,9 @@ cd ObsidianRagChat
 
 ```bash
 # 必須
-OPENAI_API_KEY=sk-...
+OPENAI_API_KEY=your_openai_api_key_here
 QDRANT_URL=https://your-cluster.cloud.qdrant.io:6333
-QDRANT_API_KEY=your-qdrant-api-key
+QDRANT_API_KEY=replace_me
 OBSIDIAN_VAULT_PATH=/path/to/your/obsidian/vault
 
 # Docker内部サービス (変更不要)

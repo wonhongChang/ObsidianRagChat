@@ -64,10 +64,14 @@ services:
       - QDRANT_API_KEY=${QDRANT_API_KEY}
       - VAULT_PATH=/vault
       - ELASTICSEARCH_HOST=http://elasticsearch:9200
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
       - INTERVAL_SECONDS=600
     volumes:
       - ${OBSIDIAN_VAULT_PATH}:/vault:ro
     depends_on:
+      redis:
+        condition: service_healthy
       elasticsearch:
         condition: service_healthy
     restart: unless-stopped

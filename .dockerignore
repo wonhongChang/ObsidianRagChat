@@ -1,0 +1,25 @@
+.git
+.github
+.idea
+.pytest_cache
+.venv
+__pycache__
+*.py[cod]
+*.log
+*.tmp
+
+# Never bake local secrets or private vault data into images.
+.env
+data
+private
+
+# Frontend build artifacts and dependencies are rebuilt inside Docker.
+frontend/node_modules
+frontend/dist
+frontend/.vite
+frontend/.vite-temp
+frontend/.tmp
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
