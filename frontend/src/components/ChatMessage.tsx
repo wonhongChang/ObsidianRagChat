@@ -53,7 +53,13 @@ export function ChatMessage({ message }: Props) {
         )}
 
         {!isUser && !message.streaming && message.usage && (
-          <UsageBadge usage={message.usage} elapsed={message.elapsedTime} cached={message.cached} />
+          <UsageBadge
+            usage={message.usage}
+            elapsed={message.elapsedTime}
+            cached={message.cached}
+            model={message.model}
+            responseLanguage={message.responseLanguage}
+          />
         )}
       </div>
     </div>

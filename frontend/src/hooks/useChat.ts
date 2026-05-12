@@ -41,7 +41,14 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       messages: [
         ...messages,
         { id: crypto.randomUUID(), role: 'user', content: query },
-        { id: assistantId, role: 'assistant', content: '', streaming: true },
+        {
+          id: assistantId,
+          role: 'assistant',
+          content: '',
+          model: settings.model,
+          responseLanguage: settings.responseLanguage,
+          streaming: true,
+        },
       ],
     });
 
@@ -54,6 +61,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         top_k: settings.topK,
         ignore_token_limit: settings.ignoreTokenLimit,
         model: settings.model,
+        response_language: settings.responseLanguage,
       })) {
         set((s) => ({
           messages: s.messages.map((m) => {
@@ -72,6 +80,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
                 usage: event.usage as TokenUsage,
                 elapsedTime: event.elapsed_time as number,
                 cached: event.cached as boolean,
+                model: settings.model,
+                responseLanguage: settings.responseLanguage,
               };
             }
             return m;

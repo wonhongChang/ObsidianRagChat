@@ -2,6 +2,8 @@
 
 ObsidianノートをRAGシステムに変換してGPTと対話するWebインターフェース。
 
+[한국어](README.md) | [English](README_EN.md) | [日本語](README_日本語.md)
+
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?logo=docker&logoColor=white)](https://www.docker.com/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-005571?logo=fastapi)](https://fastapi.tiangolo.com/)
@@ -27,6 +29,7 @@ ObsidianノートをRAGシステムに変換してGPTと対話するWebインタ
     ├─ タグ抽出 → Elasticsearch パスフィルタ (大文字・小文字両対応)
     ├─ Qdrant チャンクベクトル検索 (limit × 3 → ファイル単位マージ → top-k)
     ├─ ファイル名キーワードマッチング → スコアブースト (日本語/CJK対応)
+    ├─ response_language による韓国語/英語/日本語の回答制御
     ├─ parent_text ベースのコンテキスト構成 (max 110K トークン)
     └─ GPT回答生成 → SSEストリーミング (初回トークン ~1秒以内)
     │
@@ -53,6 +56,17 @@ ObsidianノートをRAGシステムに変換してGPTと対話するWebインタ
 | LLM | GPT-4o-mini / GPT-5-mini (設定可能) |
 | Embedding | text-embedding-3-small (1536dim、ファイル名prefix含む) |
 | Container | Docker + Docker Compose |
+
+---
+
+## デモ
+
+| 한국어 | English | 日本語 |
+|--------|---------|--------|
+| ![Korean demo](assets/screenshots/demo-ko.png) | ![English demo](assets/screenshots/demo-en.png) | ![Japanese demo](assets/screenshots/demo-ja.png) |
+
+デモ用ノートには `#DemoRAG` タグを付けています。タグ検索、多言語回答、同一質問のキャッシュヒット、フォローアップ質問の流れをすぐ確認できます。
+スクリーンショットを再撮影する場合は `http://localhost:3000?lang=ko`、`?lang=en`、`?lang=ja` で初期応答言語を固定できます。
 
 ---
 
@@ -125,6 +139,13 @@ http://localhost:3000
 → 会話履歴をもとに standalone rewrite してから検索
 ```
 
+#### 多言語回答
+```
+応答言語: Auto / 한국어 / English / 日本語
+```
+
+Obsidian Markdown は UTF-8 の原文のまま収集し、`text-embedding-3-small` で同じベクトル空間に埋め込みます。`response_language` は検索結果を翻訳する設定ではなく、生成段階で回答言語を制御する設定です。Redis のキャッシュキーにも含めるため、同じ質問の韓国語/英語/日本語回答が混ざりません。
+
 ---
 
 ## API
@@ -145,6 +166,7 @@ http://localhost:3000
   "query": "質問内容",
   "top_k": 5,
   "model": "gpt-4o-mini",
+  "response_language": "auto",
   "ignore_token_limit": false,
   "history": []
 }

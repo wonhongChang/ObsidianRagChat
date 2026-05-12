@@ -11,6 +11,8 @@ export interface Message extends ApiMessage {
   usage?: TokenUsage;
   elapsedTime?: number;
   cached?: boolean;
+  model?: ChatModel;
+  responseLanguage?: ResponseLanguage;
   streaming?: boolean;
 }
 
@@ -18,6 +20,8 @@ export interface Source {
   filename: string;
   score: number;
   tags: string[];
+  section?: string;
+  text?: string;
 }
 
 export interface TokenUsage {
@@ -27,9 +31,11 @@ export interface TokenUsage {
 }
 
 export type ChatModel = 'gpt-4o-mini' | 'gpt-5-mini';
+export type ResponseLanguage = 'auto' | 'ko' | 'en' | 'ja';
 
 export interface ChatSettings {
   topK: number;
   ignoreTokenLimit: boolean;
   model: ChatModel;
+  responseLanguage: ResponseLanguage;
 }

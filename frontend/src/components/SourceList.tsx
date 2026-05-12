@@ -7,25 +7,36 @@ interface Props {
 
 export function SourceList({ sources }: Props) {
   const [open, setOpen] = useState(false);
+  const averageScore = sources.reduce((sum, src) => sum + src.score, 0) / sources.length;
 
   return (
-    <div className="mt-2 rounded-lg border border-violet-200 dark:border-violet-900 bg-violet-50 dark:bg-violet-950/30 text-sm">
+    <div className="mt-2 w-full rounded-lg border border-violet-200 bg-violet-50 text-sm dark:border-violet-900 dark:bg-violet-950/30">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-2 px-3 py-2 text-violet-700 dark:text-violet-300 font-medium hover:bg-violet-100 dark:hover:bg-violet-900/30 rounded-lg transition-colors"
+        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-violet-700 transition-colors hover:bg-violet-100 dark:text-violet-300 dark:hover:bg-violet-900/30"
       >
-        <span className="transition-transform duration-200" style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
-        <span>📚 참조한 노트 ({sources.length}개)</span>
+        <span className="text-xs transition-transform duration-200" style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+        <span className="font-medium">출처 {sources.length}개</span>
+        <span className="ml-auto text-xs opacity-70">평균 {(averageScore * 100).toFixed(1)}%</span>
       </button>
 
       {open && (
         <div className="px-3 pb-3 flex flex-col gap-2">
           {sources.map((src, i) => (
-            <div key={i} className="bg-white dark:bg-gray-800 rounded-md px-3 py-2 border-l-4 border-violet-500">
-              <div className="font-medium text-gray-800 dark:text-gray-200">
-                📄 {src.filename}
-                <span className="ml-2 text-xs text-gray-400">
-                  유사도 {(src.score * 100).toFixed(1)}%
+            <div key={`${src.filename}-${i}`} className="rounded-md border-l-4 border-violet-500 bg-white px-3 py-2 dark:bg-gray-800">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="truncate font-medium text-gray-800 dark:text-gray-200">
+                    {src.filename}
+                  </div>
+                  {src.section && (
+                    <div className="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">
+                      {src.section}
+                    </div>
+                  )}
+                </div>
+                <span className="shrink-0 text-xs text-gray-400">
+                  {(src.score * 100).toFixed(1)}%
                 </span>
               </div>
               {src.tags && src.tags.length > 0 && (
@@ -39,6 +50,11 @@ export function SourceList({ sources }: Props) {
                     </span>
                   ))}
                 </div>
+              )}
+              {src.text && (
+                <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                  {src.text}
+                </p>
               )}
             </div>
           ))}

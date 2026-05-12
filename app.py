@@ -26,11 +26,14 @@ class Message(BaseModel):
     role: str  # 'user' or 'assistant'
     content: str
 
+ResponseLanguage = Literal["auto", "ko", "en", "ja"]
+
 class QueryRequest(BaseModel):
     query: str = Field(min_length=1, max_length=4000)
     top_k: int = Field(default=5, ge=1, le=50)  # 기본값 5개 (성능 최적화)
     ignore_token_limit: bool = False  # 토큰 제한 무시 옵션
     model: Literal["gpt-4o-mini", "gpt-5-mini"] = "gpt-4o-mini"  # 사용할 모델
+    response_language: ResponseLanguage = "auto"  # auto=질문 언어, ko/en/ja=고정 응답 언어
     history: List[Message] = Field(default_factory=list)
 
 
@@ -63,7 +66,8 @@ async def search(query_request: QueryRequest):
             normalize_query(query_request.query),
             str(query_request.top_k),
             str(query_request.ignore_token_limit),
-            query_request.model
+            query_request.model,
+            query_request.response_language
         ]
 
         # Follow-up인 경우만 history 포함
@@ -123,7 +127,8 @@ async def search(query_request: QueryRequest):
                 history=effective_history,
                 top_k=query_request.top_k,
                 ignore_token_limit=query_request.ignore_token_limit,
-                model=query_request.model
+                model=query_request.model,
+                response_language=query_request.response_language
             )
         else:
             # 독립 질문 답변 생성
@@ -131,7 +136,8 @@ async def search(query_request: QueryRequest):
                 query=query_request.query,
                 top_k=query_request.top_k,
                 ignore_token_limit=query_request.ignore_token_limit,
-                model=query_request.model
+                model=query_request.model,
+                response_language=query_request.response_language
             )
 
         # 6. 결과를 Redis에 저장 (TTL: 30분)
@@ -169,7 +175,8 @@ async def search_stream(query_request: QueryRequest):
         normalize_query(query_request.query),
         str(query_request.top_k),
         str(query_request.ignore_token_limit),
-        query_request.model
+        query_request.model,
+        query_request.response_language
     ]
     if effective_history and len(effective_history) > 0:
         history_dicts = []
@@ -192,7 +199,7 @@ async def search_stream(query_request: QueryRequest):
             answer = cached_result.get('answer', '')
             yield f'data: {json.dumps({"type": "token", "content": answer})}\n\n'
             yield f'data: {json.dumps({"type": "sources", "sources": cached_result.get("sources", [])})}\n\n'
-            yield f'data: {json.dumps({"type": "done", "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}, "elapsed_time": cache_elapsed, "cached": True})}\n\n'
+            yield f'data: {json.dumps({"type": "done", "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}, "elapsed_time": cache_elapsed, "cached": True, "response_language": query_request.response_language})}\n\n'
 
         return StreamingResponse(cache_gen(), media_type="text/event-stream")
 
@@ -202,14 +209,16 @@ async def search_stream(query_request: QueryRequest):
             history=effective_history,
             top_k=query_request.top_k,
             ignore_token_limit=query_request.ignore_token_limit,
-            model=query_request.model
+            model=query_request.model,
+            response_language=query_request.response_language
         )
     else:
         gen = generate_answer_stream(
             query=query_request.query,
             top_k=query_request.top_k,
             ignore_token_limit=query_request.ignore_token_limit,
-            model=query_request.model
+            model=query_request.model,
+            response_language=query_request.response_language
         )
 
     def stream_and_cache():
@@ -238,7 +247,8 @@ async def search_stream(query_request: QueryRequest):
             'sources': final_sources,
             'query': query_request.query,
             'usage': final_usage,
-            'elapsed_time': final_elapsed
+            'elapsed_time': final_elapsed,
+            'response_language': query_request.response_language
         })
         save_query(query_request.query)
 

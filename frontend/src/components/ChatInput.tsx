@@ -1,11 +1,20 @@
 import { useRef, useEffect } from 'react';
+import type { ResponseLanguage } from '../types';
 
 interface Props {
   onSend: (text: string) => void;
   disabled: boolean;
+  responseLanguage: ResponseLanguage;
 }
 
-export function ChatInput({ onSend, disabled }: Props) {
+const PLACEHOLDERS: Record<ResponseLanguage, string> = {
+  auto: '#DemoRAG Ask in Korean, English, or Japanese',
+  ko: '#DemoRAG 프로젝트 요약',
+  en: '#DemoRAG Summarize this project',
+  ja: '#DemoRAG このプロジェクトを要約',
+};
+
+export function ChatInput({ onSend, disabled, responseLanguage }: Props) {
   const ref = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -33,7 +42,7 @@ export function ChatInput({ onSend, disabled }: Props) {
         ref={ref}
         rows={1}
         disabled={disabled}
-        placeholder="질문을 입력하세요…"
+        placeholder={PLACEHOLDERS[responseLanguage]}
         className="flex-1 resize-none rounded-2xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 px-4 py-2.5 text-sm leading-relaxed outline-none focus:border-violet-500 dark:focus:border-violet-400 transition-colors disabled:opacity-50"
         onInput={resize}
         onKeyDown={(e) => {

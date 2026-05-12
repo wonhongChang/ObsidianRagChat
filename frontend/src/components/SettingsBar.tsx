@@ -1,10 +1,11 @@
-import type { ChatModel, ChatSettings } from '../types';
+import type { ChatModel, ChatSettings, ResponseLanguage } from '../types';
 
 interface Props {
   settings: ChatSettings;
   onChange: (s: ChatSettings) => void;
   notesCount: number;
   onClear: () => void;
+  canClear: boolean;
 }
 
 const MODELS = [
@@ -12,15 +13,78 @@ const MODELS = [
   { value: 'gpt-5-mini', label: 'GPT-5-mini' },
 ] satisfies Array<{ value: ChatModel; label: string }>;
 
-export function SettingsBar({ settings, onChange, notesCount, onClear }: Props) {
+const LANGUAGES = [
+  { value: 'auto', label: 'Auto' },
+  { value: 'ko', label: '한국어' },
+  { value: 'en', label: 'English' },
+  { value: 'ja', label: '日本語' },
+] satisfies Array<{ value: ResponseLanguage; label: string }>;
+
+const COPY = {
+  auto: {
+    notes: (count: number) => `${count}개 노트`,
+    topK: '참조 노트 수',
+    recommended: '권장 5개',
+    normal: '보통',
+    slow: '느림',
+    responseLanguage: '응답 언어',
+    maxToken: '최대 토큰 모드',
+    clear: '대화 초기화',
+    noStreaming: '스트리밍 미지원',
+  },
+  ko: {
+    notes: (count: number) => `${count}개 노트`,
+    topK: '참조 노트 수',
+    recommended: '권장 5개',
+    normal: '보통',
+    slow: '느림',
+    responseLanguage: '응답 언어',
+    maxToken: '최대 토큰 모드',
+    clear: '대화 초기화',
+    noStreaming: '스트리밍 미지원',
+  },
+  en: {
+    notes: (count: number) => `${count} notes`,
+    topK: 'Top notes',
+    recommended: 'Recommended 5',
+    normal: 'Normal',
+    slow: 'Slow',
+    responseLanguage: 'Answer language',
+    maxToken: 'Max token mode',
+    clear: 'Clear chat',
+    noStreaming: 'No streaming',
+  },
+  ja: {
+    notes: (count: number) => `${count}件のノート`,
+    topK: '参照ノート数',
+    recommended: '推奨 5件',
+    normal: '通常',
+    slow: '遅め',
+    responseLanguage: '回答言語',
+    maxToken: '最大トークンモード',
+    clear: '会話をクリア',
+    noStreaming: 'ストリーミング非対応',
+  },
+} satisfies Record<ResponseLanguage, {
+  notes: (count: number) => string;
+  topK: string;
+  recommended: string;
+  normal: string;
+  slow: string;
+  responseLanguage: string;
+  maxToken: string;
+  clear: string;
+  noStreaming: string;
+}>;
+
+export function SettingsBar({ settings, onChange, notesCount, onClear, canClear }: Props) {
   const maxTopK = Math.min(notesCount || 50, 50);
+  const copy = COPY[settings.responseLanguage];
 
   const topKLabel = () => {
-    if (settings.topK < 5) return '↑ 권장 5개';
-    if (settings.topK === 5) return '⚡ 권장 5개';
-    if (settings.topK <= 20) return '보통';
-    if (settings.topK <= 50) return '⏳ 느림';
-    return '🐌 매우 느림';
+    if (settings.topK <= 5) return copy.recommended;
+    if (settings.topK <= 20) return copy.normal;
+    return copy.slow;
   };
 
   return (
@@ -29,11 +93,11 @@ export function SettingsBar({ settings, onChange, notesCount, onClear }: Props) 
       <div className="flex items-center gap-3">
         {notesCount > 0 && (
           <span className="text-violet-600 dark:text-violet-400 font-medium whitespace-nowrap">
-            📁 {notesCount}개 노트
+            {copy.notes(notesCount)}
           </span>
         )}
         <label className="flex items-center gap-1.5">
-          <span className="whitespace-nowrap">참조 노트 수</span>
+          <span className="whitespace-nowrap">{copy.topK}</span>
           <input
             type="number"
             min={1}
@@ -56,9 +120,23 @@ export function SettingsBar({ settings, onChange, notesCount, onClear }: Props) 
       </div>
 
       {/* 그룹2: 모델 + 최대 토큰 모드 + 대화 초기화 */}
-      <div className="flex items-center gap-3 sm:ml-auto">
+      <div className="flex flex-wrap items-center gap-3 sm:ml-auto">
+        <label className="flex items-center gap-1.5">
+          <span className="whitespace-nowrap">{copy.responseLanguage}</span>
+          <select
+            aria-label="응답 언어"
+            value={settings.responseLanguage}
+            onChange={(e) => onChange({ ...settings, responseLanguage: e.target.value as ResponseLanguage })}
+            className="px-1.5 py-0.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800"
+          >
+            {LANGUAGES.map((language) => (
+              <option key={language.value} value={language.value}>{language.label}</option>
+            ))}
+          </select>
+        </label>
         <div className="flex items-center gap-1.5">
           <select
+            aria-label="모델"
             value={settings.model}
             onChange={(e) => onChange({ ...settings, model: e.target.value as ChatModel })}
             className="px-1.5 py-0.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800"
@@ -68,7 +146,7 @@ export function SettingsBar({ settings, onChange, notesCount, onClear }: Props) 
             ))}
           </select>
           {settings.model === 'gpt-5-mini' && (
-            <span className="whitespace-nowrap text-amber-500">스트리밍 미지원</span>
+            <span className="whitespace-nowrap text-amber-500">{copy.noStreaming}</span>
           )}
         </div>
         <label className="flex items-center gap-1.5 cursor-pointer">
@@ -78,14 +156,16 @@ export function SettingsBar({ settings, onChange, notesCount, onClear }: Props) 
             onChange={(e) => onChange({ ...settings, ignoreTokenLimit: e.target.checked })}
             className="accent-violet-500"
           />
-          <span className="whitespace-nowrap">최대 토큰 모드</span>
+          <span className="whitespace-nowrap">{copy.maxToken}</span>
         </label>
-        <button
-          onClick={onClear}
-          className="ml-auto sm:ml-0 px-3 py-1 rounded bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors whitespace-nowrap"
-        >
-          대화 초기화
-        </button>
+        {canClear && (
+          <button
+            onClick={onClear}
+            className="ml-auto sm:ml-0 px-3 py-1 rounded bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors whitespace-nowrap"
+          >
+            {copy.clear}
+          </button>
+        )}
       </div>
     </div>
   );

@@ -240,7 +240,36 @@ def _extract_responses_text(response, label: str = "Responses API") -> str:
     return "⚠️ GPT-5-mini 응답을 파싱할 수 없습니다."
 
 
-def generate_answer_with_rag(query: str, top_k: int = 5, ignore_token_limit: bool = False, model: str = "gpt-4o-mini"):
+RESPONSE_LANGUAGE_INSTRUCTIONS = {
+    "auto": "Answer in the same language as the user's latest question. If the question mixes languages, prefer the dominant language.",
+    "ko": "Answer in Korean.",
+    "en": "Answer in English.",
+    "ja": "Answer in Japanese.",
+}
+
+NO_RESULTS_MESSAGES = {
+    "auto": "관련된 노트를 찾을 수 없습니다.",
+    "ko": "관련된 노트를 찾을 수 없습니다.",
+    "en": "No relevant notes were found.",
+    "ja": "関連するノートが見つかりませんでした。",
+}
+
+
+def _response_language_instruction(response_language: str) -> str:
+    return RESPONSE_LANGUAGE_INSTRUCTIONS.get(response_language, RESPONSE_LANGUAGE_INSTRUCTIONS["auto"])
+
+
+def _no_results_message(response_language: str) -> str:
+    return NO_RESULTS_MESSAGES.get(response_language, NO_RESULTS_MESSAGES["auto"])
+
+
+def generate_answer_with_rag(
+    query: str,
+    top_k: int = 5,
+    ignore_token_limit: bool = False,
+    model: str = "gpt-4o-mini",
+    response_language: str = "auto",
+):
     """
     Qdrant에서 관련 노트를 검색하고 GPT를 사용해 답변 생성
 
@@ -259,6 +288,7 @@ def generate_answer_with_rag(query: str, top_k: int = 5, ignore_token_limit: boo
     logger.info(f"=== 새로운 쿼리 시작 ===")
     logger.info(f"📝 쿼리: {query}")
     logger.info(f"🔢 검색할 노트 개수: {top_k}")
+    logger.info(f"🌐 응답 언어: {response_language}")
     
     # 쿼리에서 태그 추출 (예: "#painpoint" 또는 "painpoint 태그")
     import re
@@ -279,10 +309,12 @@ def generate_answer_with_rag(query: str, top_k: int = 5, ignore_token_limit: boo
     
     if not results:
         logger.warning("⚠️  검색 결과 없음")
+        answer = _no_results_message(response_language)
         return {
-            'answer': "관련된 노트를 찾을 수 없습니다.",
+            'answer': answer,
             'sources': [],
-            'usage': None
+            'usage': None,
+            'response_language': response_language
         }
     
     # 중복 제거 (같은 ID의 노트는 하나만 유지)
@@ -383,7 +415,10 @@ def generate_answer_with_rag(query: str, top_k: int = 5, ignore_token_limit: boo
     system_prompt = """당신은 사용자의 개인 노트를 기반으로 질문에 답하는 AI 어시스턴트입니다.
 제공된 노트 내용을 바탕으로 정확하고 유용한 답변을 제공하세요.
 노트에 없는 내용은 추측하지 말고, 노트 기반으로만 답변하세요.
-답변 시 어떤 노트를 참조했는지 [노트 번호]를 명시하세요."""
+답변 시 어떤 노트를 참조했는지 [노트 번호]를 명시하세요.
+응답 언어 지침: {language_instruction}""".format(
+        language_instruction=_response_language_instruction(response_language)
+    )
 
     user_prompt = f"""다음은 사용자의 노트 내용입니다:
 
@@ -488,7 +523,8 @@ def generate_answer_with_rag(query: str, top_k: int = 5, ignore_token_limit: boo
             'completion_tokens': output_tokens,
             'total_tokens': total_tokens
         },
-        'elapsed_time': elapsed_time
+        'elapsed_time': elapsed_time,
+        'response_language': response_language
     }
 
 def _prepare_context(results, top_k: int, ignore_token_limit: bool):
@@ -566,7 +602,14 @@ Follow-up 질문: {query}
         return query
 
 
-def generate_followup_answer(query: str, history: list, top_k: int = 5, ignore_token_limit: bool = False, model: str = "gpt-4o-mini"):
+def generate_followup_answer(
+    query: str,
+    history: list,
+    top_k: int = 5,
+    ignore_token_limit: bool = False,
+    model: str = "gpt-4o-mini",
+    response_language: str = "auto",
+):
     """
     이전 대화 히스토리를 바탕으로 follow-up 질문에 답변
 
@@ -582,6 +625,7 @@ def generate_followup_answer(query: str, history: list, top_k: int = 5, ignore_t
     logger.info(f"=== Follow-up 쿼리 시작 ===")
     logger.info(f"📝 쿼리: {query}")
     logger.info(f"💬 히스토리 길이: {len(history)}개 메시지")
+    logger.info(f"🌐 응답 언어: {response_language}")
     
     # 태그 추출 (현재 query만 — history 상속 없음)
     import re
@@ -702,7 +746,10 @@ def generate_followup_answer(query: str, history: list, top_k: int = 5, ignore_t
     messages = [
         {"role": "system", "content": """당신은 사용자의 개인 노트를 기반으로 질문에 답하는 AI 어시스턴트입니다.
 이전 대화 내용을 참고하여 자연스럽게 대화를 이어가세요.
-노트 내용과 이전 대화를 바탕으로 정확하고 유용한 답변을 제공하세요."""}
+노트 내용과 이전 대화를 바탕으로 정확하고 유용한 답변을 제공하세요.
+응답 언어 지침: {language_instruction}""".format(
+            language_instruction=_response_language_instruction(response_language)
+        )}
     ]
     
     # 히스토리 추가 (최근 15개 대화로 확장 - 긴 대화 컨텍스트 유지)
@@ -801,7 +848,8 @@ def generate_followup_answer(query: str, history: list, top_k: int = 5, ignore_t
             'completion_tokens': output_tokens,
             'total_tokens': total_tokens
         },
-        'elapsed_time': elapsed_time
+        'elapsed_time': elapsed_time,
+        'response_language': response_language
     }
 
 
@@ -809,7 +857,13 @@ def generate_followup_answer(query: str, history: list, top_k: int = 5, ignore_t
 # Streaming variants
 # ---------------------------------------------------------------------------
 
-def generate_answer_stream(query: str, top_k: int = 5, ignore_token_limit: bool = False, model: str = "gpt-4o-mini"):
+def generate_answer_stream(
+    query: str,
+    top_k: int = 5,
+    ignore_token_limit: bool = False,
+    model: str = "gpt-4o-mini",
+    response_language: str = "auto",
+):
     """Sync generator yielding SSE data strings for a standalone RAG query."""
     import json
     import re
@@ -825,9 +879,10 @@ def generate_answer_stream(query: str, top_k: int = 5, ignore_token_limit: bool 
         results = search_relevant_notes(query, limit=top_k)
 
     if not results:
-        yield f'data: {json.dumps({"type": "token", "content": "관련된 노트를 찾을 수 없습니다."})}\n\n'
+        answer = _no_results_message(response_language)
+        yield f'data: {json.dumps({"type": "token", "content": answer})}\n\n'
         yield f'data: {json.dumps({"type": "sources", "sources": []})}\n\n'
-        yield f'data: {json.dumps({"type": "done", "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}, "elapsed_time": 0, "answer": "관련된 노트를 찾을 수 없습니다."})}\n\n'
+        yield f'data: {json.dumps({"type": "done", "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}, "elapsed_time": 0, "answer": answer, "response_language": response_language})}\n\n'
         return
 
     seen_ids = set()
@@ -842,7 +897,10 @@ def generate_answer_stream(query: str, top_k: int = 5, ignore_token_limit: bool 
     system_prompt = """당신은 사용자의 개인 노트를 기반으로 질문에 답하는 AI 어시스턴트입니다.
 제공된 노트 내용을 바탕으로 정확하고 유용한 답변을 제공하세요.
 노트에 없는 내용은 추측하지 말고, 노트 기반으로만 답변하세요.
-답변 시 어떤 노트를 참조했는지 [노트 번호]를 명시하세요."""
+답변 시 어떤 노트를 참조했는지 [노트 번호]를 명시하세요.
+응답 언어 지침: {language_instruction}""".format(
+        language_instruction=_response_language_instruction(response_language)
+    )
 
     user_prompt = f"""다음은 사용자의 노트 내용입니다:
 
@@ -853,10 +911,10 @@ def generate_answer_stream(query: str, top_k: int = 5, ignore_token_limit: bool 
 위 노트 내용을 바탕으로 질문에 답변해주세요."""
 
     if model == "gpt-5-mini":
-        result = generate_answer_with_rag(query, top_k, ignore_token_limit, model)
+        result = generate_answer_with_rag(query, top_k, ignore_token_limit, model, response_language)
         yield f'data: {json.dumps({"type": "token", "content": result["answer"]})}\n\n'
         yield f'data: {json.dumps({"type": "sources", "sources": result["sources"]})}\n\n'
-        yield f'data: {json.dumps({"type": "done", "usage": result["usage"], "elapsed_time": result["elapsed_time"], "answer": result["answer"]})}\n\n'
+        yield f'data: {json.dumps({"type": "done", "usage": result["usage"], "elapsed_time": result["elapsed_time"], "answer": result["answer"], "response_language": response_language})}\n\n'
         return
 
     full_answer = ""
@@ -890,10 +948,17 @@ def generate_answer_stream(query: str, top_k: int = 5, ignore_token_limit: bool 
     logger.info(f"⏱️ [stream] {elapsed_time:.2f}s, {usage_data['total_tokens']} tokens")
 
     yield f'data: {json.dumps({"type": "sources", "sources": sources})}\n\n'
-    yield f'data: {json.dumps({"type": "done", "usage": usage_data, "elapsed_time": elapsed_time, "answer": full_answer})}\n\n'
+    yield f'data: {json.dumps({"type": "done", "usage": usage_data, "elapsed_time": elapsed_time, "answer": full_answer, "response_language": response_language})}\n\n'
 
 
-def generate_followup_stream(query: str, history: list, top_k: int = 5, ignore_token_limit: bool = False, model: str = "gpt-4o-mini"):
+def generate_followup_stream(
+    query: str,
+    history: list,
+    top_k: int = 5,
+    ignore_token_limit: bool = False,
+    model: str = "gpt-4o-mini",
+    response_language: str = "auto",
+):
     """Sync generator yielding SSE data strings for a follow-up RAG query."""
     import json
     import re
@@ -913,9 +978,10 @@ def generate_followup_stream(query: str, history: list, top_k: int = 5, ignore_t
         results = search_relevant_notes(search_query, limit=top_k)
 
     if not results:
-        yield f'data: {json.dumps({"type": "token", "content": "관련된 노트를 찾을 수 없습니다."})}\n\n'
+        answer = _no_results_message(response_language)
+        yield f'data: {json.dumps({"type": "token", "content": answer})}\n\n'
         yield f'data: {json.dumps({"type": "sources", "sources": []})}\n\n'
-        yield f'data: {json.dumps({"type": "done", "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}, "elapsed_time": 0, "answer": "관련된 노트를 찾을 수 없습니다."})}\n\n'
+        yield f'data: {json.dumps({"type": "done", "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}, "elapsed_time": 0, "answer": answer, "response_language": response_language})}\n\n'
         return
 
     seen_ids = set()
@@ -930,7 +996,10 @@ def generate_followup_stream(query: str, history: list, top_k: int = 5, ignore_t
     messages = [
         {"role": "system", "content": """당신은 사용자의 개인 노트를 기반으로 질문에 답하는 AI 어시스턴트입니다.
 이전 대화 내용을 참고하여 자연스럽게 대화를 이어가세요.
-노트 내용과 이전 대화를 바탕으로 정확하고 유용한 답변을 제공하세요."""}
+노트 내용과 이전 대화를 바탕으로 정확하고 유용한 답변을 제공하세요.
+응답 언어 지침: {language_instruction}""".format(
+            language_instruction=_response_language_instruction(response_language)
+        )}
     ]
     for msg in history[-15:]:
         if isinstance(msg, dict):
@@ -940,10 +1009,10 @@ def generate_followup_stream(query: str, history: list, top_k: int = 5, ignore_t
     messages.append({"role": "user", "content": f"관련 노트:\n\n{context}\n\n질문: {query}"})
 
     if model == "gpt-5-mini":
-        result = generate_followup_answer(query, history, top_k, ignore_token_limit, model)
+        result = generate_followup_answer(query, history, top_k, ignore_token_limit, model, response_language)
         yield f'data: {json.dumps({"type": "token", "content": result["answer"]})}\n\n'
         yield f'data: {json.dumps({"type": "sources", "sources": result["sources"]})}\n\n'
-        yield f'data: {json.dumps({"type": "done", "usage": result["usage"], "elapsed_time": result["elapsed_time"], "answer": result["answer"]})}\n\n'
+        yield f'data: {json.dumps({"type": "done", "usage": result["usage"], "elapsed_time": result["elapsed_time"], "answer": result["answer"], "response_language": response_language})}\n\n'
         return
 
     full_answer = ""
@@ -974,4 +1043,4 @@ def generate_followup_stream(query: str, history: list, top_k: int = 5, ignore_t
     logger.info(f"⏱️ [stream follow-up] {elapsed_time:.2f}s, {usage_data['total_tokens']} tokens")
 
     yield f'data: {json.dumps({"type": "sources", "sources": sources})}\n\n'
-    yield f'data: {json.dumps({"type": "done", "usage": usage_data, "elapsed_time": elapsed_time, "answer": full_answer})}\n\n'
+    yield f'data: {json.dumps({"type": "done", "usage": usage_data, "elapsed_time": elapsed_time, "answer": full_answer, "response_language": response_language})}\n\n'

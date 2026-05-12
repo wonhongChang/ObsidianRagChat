@@ -2,6 +2,8 @@
 
 Obsidian 노트를 RAG 검색 시스템으로 동기화하고, GPT와 대화하듯 질의할 수 있는 웹 인터페이스입니다.
 
+[한국어](README.md) | [English](README_EN.md) | [日本語](README_日本語.md)
+
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?logo=docker&logoColor=white)](https://www.docker.com/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-005571?logo=fastapi)](https://fastapi.tiangolo.com/)
@@ -27,6 +29,7 @@ Obsidian 노트를 RAG 검색 시스템으로 동기화하고, GPT와 대화하�
     |- 태그 추출 -> Elasticsearch 경로 필터
     |- Qdrant 청크 벡터 검색 -> 파일 단위 병합 -> top-k
     |- 파일명 키워드 매칭 보강 (한국어/일본어/CJK 대응)
+    |- response_language 기반 한국어/영어/일본어 답변 제어
     |- parent_text 기반 컨텍스트 구성 (기본 max 110K 토큰)
     |- GPT 답변 생성 및 SSE 스트리밍
     |
@@ -53,6 +56,17 @@ Obsidian 노트를 RAG 검색 시스템으로 동기화하고, GPT와 대화하�
 | LLM | GPT-4o-mini / GPT-5-mini |
 | Embedding | text-embedding-3-small (1536 dim, 파일명 prefix 포함) |
 | Container | Docker + Docker Compose |
+
+---
+
+## 데모
+
+| 한국어 | English | 日本語 |
+|--------|---------|--------|
+| ![Korean demo](assets/screenshots/demo-ko.png) | ![English demo](assets/screenshots/demo-en.png) | ![Japanese demo](assets/screenshots/demo-ja.png) |
+
+데모 노트에는 `#DemoRAG` 태그를 붙여 태그 검색, 다국어 질의, 캐시 히트, Follow-up 흐름을 빠르게 확인할 수 있습니다.
+스크린샷 재촬영 시 `http://localhost:3000?lang=ko`, `?lang=en`, `?lang=ja`로 초기 응답 언어를 고정할 수 있습니다.
 
 ---
 
@@ -131,6 +145,14 @@ Elasticsearch로 태그가 일치하는 문서 경로를 먼저 좁힌 뒤 Qdran
 
 후속 질문은 최근 대화 히스토리를 참고해 standalone 검색 쿼리로 재작성한 뒤 검색합니다.
 
+### 다국어 응답
+
+```text
+응답 언어: Auto / 한국어 / English / 日本語
+```
+
+노트 원문은 UTF-8 Markdown 그대로 수집하고 `text-embedding-3-small`로 같은 벡터 공간에 임베딩합니다. `response_language`는 검색 결과를 바꾸는 번역 옵션이 아니라, 생성 단계에서 답변 언어를 제어하는 옵션입니다. 캐시 키에도 포함되어 같은 질문의 한국어/영어/일본어 답변이 섞이지 않습니다.
+
 ---
 
 ## API
@@ -151,6 +173,7 @@ Elasticsearch로 태그가 일치하는 문서 경로를 먼저 좁힌 뒤 Qdran
   "query": "질문 내용",
   "top_k": 5,
   "model": "gpt-4o-mini",
+  "response_language": "auto",
   "ignore_token_limit": false,
   "history": []
 }
