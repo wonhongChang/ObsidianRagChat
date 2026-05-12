@@ -49,7 +49,7 @@ export function ChatMessage({ message }: Props) {
         </div>
 
         {!isUser && message.sources && message.sources.length > 0 && (
-          <SourceList sources={message.sources} />
+          <SourceList sources={message.sources} responseLanguage={message.responseLanguage ?? 'auto'} />
         )}
 
         {!isUser && !message.streaming && message.usage && (

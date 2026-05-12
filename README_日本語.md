@@ -2,7 +2,7 @@
 
 ObsidianノートをRAGシステムに変換してGPTと対話するWebインターフェース。
 
-[한국어](README.md) | [English](README_EN.md) | [日本語](README_日本語.md)
+[English](README.md) | [한국어](README_KO.md) | [日本語](README_日本語.md)
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?logo=docker&logoColor=white)](https://www.docker.com/)
@@ -61,12 +61,27 @@ ObsidianノートをRAGシステムに変換してGPTと対話するWebインタ
 
 ## デモ
 
-| 한국어 | English | 日本語 |
-|--------|---------|--------|
-| ![Korean demo](assets/screenshots/demo-ko.png) | ![English demo](assets/screenshots/demo-en.png) | ![Japanese demo](assets/screenshots/demo-ja.png) |
+### スタート画面
 
-デモ用ノートには `#DemoRAG` タグを付けています。タグ検索、多言語回答、同一質問のキャッシュヒット、フォローアップ質問の流れをすぐ確認できます。
-スクリーンショットを再撮影する場合は `http://localhost:3000?lang=ko`、`?lang=en`、`?lang=ja` で初期応答言語を固定できます。
+![Japanese demo start](assets/screenshots/demo-ja.png)
+
+### 回答画面
+
+![Japanese answer demo](assets/screenshots/demo-ja-answer.png)
+
+### タグ検索回答
+
+![Japanese tag-filtered answer demo](assets/screenshots/demo-ja-tag.png)
+
+### フォローアップ回答
+
+![Japanese follow-up answer demo](assets/screenshots/demo-ja-followup.png)
+
+### キャッシュヒット
+
+![Japanese cache demo](assets/screenshots/demo-ja-cache.png)
+
+デモ用ノートには `#DemoRAG` タグを付けています。タグ検索、多言語回答、同一質問のキャッシュヒット、フォローアップ質問の流れをすぐ確認できます。日本語スクリーンショットを再撮影する場合は `http://localhost:3000?lang=ja` で初期応答言語を固定でき、`&demo=answer`、`&demo=tag`、`&demo=followup`、`&demo=cache` を付けると各デモ画面を安定して撮影できます。韓国語と英語のスクリーンショットは各言語 README で別々に管理します。
 
 ---
 

@@ -3,6 +3,7 @@ import { useChatStore } from './hooks/useChat';
 import { MessageList } from './components/MessageList';
 import { ChatInput } from './components/ChatInput';
 import { SettingsBar } from './components/SettingsBar';
+import { getDemoConversation } from './demoConversations';
 import type { ChatSettings, ResponseLanguage } from './types';
 
 const DEFAULT_SETTINGS: ChatSettings = {
@@ -13,15 +14,19 @@ const DEFAULT_SETTINGS: ChatSettings = {
 };
 
 const RESPONSE_LANGUAGES = ['auto', 'ko', 'en', 'ja'] satisfies ResponseLanguage[];
+const INITIAL_SEARCH_PARAMS = new URLSearchParams(window.location.search);
 
 function getInitialSettings(): ChatSettings {
-  const lang = new URLSearchParams(window.location.search).get('lang');
+  const lang = INITIAL_SEARCH_PARAMS.get('lang');
   const responseLanguage = RESPONSE_LANGUAGES.includes(lang as ResponseLanguage)
     ? (lang as ResponseLanguage)
     : DEFAULT_SETTINGS.responseLanguage;
 
   return { ...DEFAULT_SETTINGS, responseLanguage };
 }
+
+const INITIAL_SETTINGS = getInitialSettings();
+const INITIAL_DEMO_MESSAGES = getDemoConversation(INITIAL_SEARCH_PARAMS.get('demo'), INITIAL_SETTINGS.responseLanguage);
 
 const NOTE_COUNT_COPY: Record<ResponseLanguage, (count: number) => string> = {
   auto: (count) => `${count}개 노트 검색 가능`,
@@ -31,12 +36,21 @@ const NOTE_COUNT_COPY: Record<ResponseLanguage, (count: number) => string> = {
 };
 
 export default function App() {
-  const { messages, isStreaming, notesCount, sendMessage, clearMessages, loadNotesCount } = useChatStore();
-  const [settings, setSettings] = useState<ChatSettings>(getInitialSettings);
+  const {
+    messages,
+    isStreaming,
+    notesCount,
+    sendMessage,
+    clearMessages,
+    loadDemoMessages,
+    loadNotesCount,
+  } = useChatStore();
+  const [settings, setSettings] = useState<ChatSettings>(INITIAL_SETTINGS);
 
   useEffect(() => {
     loadNotesCount();
-  }, [loadNotesCount]);
+    if (INITIAL_DEMO_MESSAGES) loadDemoMessages(INITIAL_DEMO_MESSAGES);
+  }, [loadDemoMessages, loadNotesCount]);
 
   const handleClear = () => {
     if (messages.length === 0) return;

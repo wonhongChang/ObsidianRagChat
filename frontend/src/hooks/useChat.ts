@@ -8,6 +8,7 @@ interface ChatStore {
   notesCount: number;
   sendMessage: (query: string, settings: ChatSettings) => Promise<void>;
   clearMessages: () => void;
+  loadDemoMessages: (messages: Message[]) => void;
   loadNotesCount: () => Promise<void>;
 }
 
@@ -102,4 +103,5 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   },
 
   clearMessages: () => set({ messages: [] }),
+  loadDemoMessages: (messages) => set({ messages, isStreaming: false }),
 }));
