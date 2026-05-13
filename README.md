@@ -166,6 +166,44 @@ Vault Markdown is indexed as UTF-8 text and embedded into the same vector space 
 
 ---
 
+## Project Structure
+
+```text
+ObsidianRagChat/
+|- app.py                    # FastAPI server, cache, and question routing
+|- sync_documents.py         # Incremental sync worker
+|- frontend/                 # React + Vite + TypeScript UI
+|  |- src/api/stream.ts      # SSE async generator
+|  |- src/components/        # Chat UI components
+|  |- src/hooks/useChat.ts   # Zustand chat state
+|  |- nginx.conf             # SSE proxy configuration
+|- embed/
+|  |- chunker.py             # Header-aware Markdown chunking
+|  |- document_loader.py     # Obsidian Markdown loader
+|  |- embedder.py            # OpenAI embedding batch processing
+|  |- vector_store.py        # Qdrant collection helpers
+|- rag/
+|  |- generator.py           # Retrieval, context building, and GPT calls
+|- search/
+|  |- cache.py               # Redis answer cache
+|  |- document_index.py      # Elasticsearch indexing
+|  |- question_detector.py   # Standalone/follow-up detection
+|- scripts/
+|  |- clear_cache.py         # Clear Redis cache
+|  |- clear_qdrant.py        # Reset Qdrant collection
+|  |- add_qdrant_index.py    # Add Qdrant payload indexes
+|- tests/
+|  |- test_chunker.py
+|  |- test_question_detector.py
+|- docker-compose.yml
+|- Dockerfile.frontend
+|- Dockerfile.web
+|- Dockerfile.sync
+|- requirements.txt
+```
+
+---
+
 ## Commands
 
 ```bash
