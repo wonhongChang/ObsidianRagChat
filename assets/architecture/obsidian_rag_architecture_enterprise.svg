@@ -1,0 +1,234 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2560" height="1440" viewBox="0 0 2560 1440" role="img" aria-labelledby="title desc">
+<title id="title">Obsidian RAG Chat Architecture</title>
+<desc id="desc">Clean grid-aligned architecture diagram for Obsidian RAG chat.</desc>
+<defs>
+  <filter id="shadow" x="-12%" y="-12%" width="124%" height="136%"><feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#0f172a" flood-opacity="0.07"/></filter>
+  <filter id="softShadow" x="-12%" y="-12%" width="124%" height="130%"><feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#0f172a" flood-opacity="0.05"/></filter>
+  <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#f1f5f9"/></linearGradient>
+  <linearGradient id="blueFill" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#eff6ff"/></linearGradient>
+  <linearGradient id="greenFill" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#ecfdf5"/></linearGradient>
+  <linearGradient id="tealFill" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#ecfeff"/></linearGradient>
+  <linearGradient id="purpleFill" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#f5f3ff"/></linearGradient>
+  <linearGradient id="orangeFill" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#fff7ed"/></linearGradient>
+  <marker id="arrowBlue" markerWidth="11" markerHeight="11" refX="9.5" refY="5.5" orient="auto"><path d="M1.5,1.2 L9.8,5.5 L1.5,9.8 Z" fill="#2563eb"/></marker>
+  <marker id="arrowGreen" markerWidth="11" markerHeight="11" refX="9.5" refY="5.5" orient="auto"><path d="M1.5,1.2 L9.8,5.5 L1.5,9.8 Z" fill="#059669"/></marker>
+  <marker id="arrowTeal" markerWidth="11" markerHeight="11" refX="9.5" refY="5.5" orient="auto"><path d="M1.5,1.2 L9.8,5.5 L1.5,9.8 Z" fill="#0f766e"/></marker>
+  <style>
+    .title{font-family:Inter,'Segoe UI',Arial,sans-serif;font-weight:800;fill:#0f172a;letter-spacing:-1.2px}
+    .subtitle{font-family:Inter,'Segoe UI',Arial,sans-serif;font-weight:500;fill:#475569}
+    .section-title{font-family:Inter,'Segoe UI',Arial,sans-serif;font-weight:800;fill:#0f172a}
+    .section-note{font-family:Inter,'Segoe UI',Arial,sans-serif;font-weight:700;fill:#64748b}
+    .node-title{font-family:Inter,'Segoe UI',Arial,sans-serif;font-weight:800;fill:#0f172a}
+    .node-small{font-family:Inter,'Segoe UI',Arial,sans-serif;font-weight:500;fill:#475569}
+    .step{font-family:Inter,'Segoe UI',Arial,sans-serif;font-weight:800;fill:#fff}
+    .footer{font-family:Inter,'Segoe UI',Arial,sans-serif;font-weight:700;fill:#475569}
+    .callout{font-family:Inter,'Segoe UI',Arial,sans-serif;font-weight:700;fill:#475569}
+  </style>
+</defs>
+<rect width="2560" height="1440" fill="#f8fafc"/>
+<text x="86" y="78" font-size="56" class="title">Obsidian RAG Chat Architecture</text>
+<text x="88" y="122" font-size="24" class="subtitle">Runtime, retrieval, and indexing flow</text>
+<g>
+<rect x="72" y="150" width="2416" height="300" rx="28" fill="url(#bgGrad)" stroke="#bfdbfe" stroke-width="2.2" filter="url(#shadow)"/>
+<text x="106" y="200" font-size="29" class="section-title">1. Runtime request &amp; answer flow</text>
+<text x="2454" y="200" font-size="17" text-anchor="end" class="section-note">cache hit returns directly; cache miss continues through RAG</text>
+</g>
+<g>
+<rect x="124.0" y="245" width="252" height="120" rx="18" fill="url(#blueFill)" stroke="#2563eb" stroke-width="2.1" filter="url(#softShadow)"/>
+<circle cx="157.0" cy="279" r="17" fill="#2563eb"/>
+<text x="157.0" y="285" font-size="17" text-anchor="middle" class="step">1</text>
+<text x="182.0" y="285" font-size="21" class="node-title">Browser UI</text>
+<text x="152.0" y="319" font-size="16.5" class="node-small">React + Vite chat</text>
+<text x="152.0" y="346" font-size="16.5" class="node-small">sources / usage</text>
+</g>
+<g>
+<rect x="467.3333333333333" y="245" width="252" height="120" rx="18" fill="url(#purpleFill)" stroke="#7c3aed" stroke-width="2.1" filter="url(#softShadow)"/>
+<circle cx="500.3333333333333" cy="279" r="17" fill="#7c3aed"/>
+<text x="500.3333333333333" y="285" font-size="17" text-anchor="middle" class="step">2</text>
+<text x="525.3333333333333" y="285" font-size="21" class="node-title">FastAPI API</text>
+<text x="495.3333333333333" y="319" font-size="16.5" class="node-small">HTTPS endpoint</text>
+<text x="495.3333333333333" y="346" font-size="16.5" class="node-small">request validation</text>
+</g>
+<g>
+<rect x="810.6666666666666" y="245" width="252" height="120" rx="18" fill="url(#purpleFill)" stroke="#7c3aed" stroke-width="2.1" filter="url(#softShadow)"/>
+<circle cx="843.6666666666666" cy="279" r="17" fill="#7c3aed"/>
+<text x="843.6666666666666" y="285" font-size="17" text-anchor="middle" class="step">3</text>
+<text x="868.6666666666666" y="285" font-size="21" class="node-title">Question Router</text>
+<text x="838.6666666666666" y="319" font-size="16.5" class="node-small">independent / follow-up</text>
+<text x="838.6666666666666" y="346" font-size="16.5" class="node-small">standalone rewrite</text>
+</g>
+<g>
+<rect x="1154.0" y="245" width="252" height="120" rx="18" fill="url(#orangeFill)" stroke="#f59e0b" stroke-width="2.1" filter="url(#softShadow)"/>
+<circle cx="1187.0" cy="279" r="17" fill="#f59e0b"/>
+<text x="1187.0" y="285" font-size="17" text-anchor="middle" class="step">4</text>
+<text x="1212.0" y="285" font-size="21" class="node-title">Redis Cache</text>
+<text x="1182.0" y="319" font-size="16.5" class="node-small">TTL 30 min</text>
+<text x="1182.0" y="346" font-size="16.5" class="node-small">hit: answer / miss: RAG</text>
+</g>
+<g>
+<rect x="1497.3333333333333" y="245" width="252" height="120" rx="18" fill="url(#tealFill)" stroke="#0f766e" stroke-width="2.1" filter="url(#softShadow)"/>
+<circle cx="1530.3333333333333" cy="279" r="17" fill="#0f766e"/>
+<text x="1530.3333333333333" y="285" font-size="17" text-anchor="middle" class="step">5</text>
+<text x="1555.3333333333333" y="285" font-size="21" class="node-title">RAG Pipeline</text>
+<text x="1525.3333333333333" y="319" font-size="16.5" class="node-small">retrieval + context</text>
+<text x="1525.3333333333333" y="346" font-size="16.5" class="node-small">OpenAI answer</text>
+</g>
+<g>
+<rect x="1840.6666666666665" y="245" width="252" height="120" rx="18" fill="url(#blueFill)" stroke="#2563eb" stroke-width="2.1" filter="url(#softShadow)"/>
+<circle cx="1873.6666666666665" cy="279" r="17" fill="#2563eb"/>
+<text x="1873.6666666666665" y="285" font-size="17" text-anchor="middle" class="step">6</text>
+<text x="1898.6666666666665" y="285" font-size="21" class="node-title">SSE Stream</text>
+<text x="1868.6666666666665" y="319" font-size="16.5" class="node-small">token events</text>
+<text x="1868.6666666666665" y="346" font-size="16.5" class="node-small">sources + done</text>
+</g>
+<g>
+<rect x="2184.0" y="245" width="252" height="120" rx="18" fill="url(#blueFill)" stroke="#2563eb" stroke-width="2.1" filter="url(#softShadow)"/>
+<circle cx="2217.0" cy="279" r="17" fill="#2563eb"/>
+<text x="2217.0" y="285" font-size="17" text-anchor="middle" class="step">7</text>
+<text x="2242.0" y="285" font-size="21" class="node-title">UI Render</text>
+<text x="2212.0" y="319" font-size="16.5" class="node-small">answer display</text>
+<text x="2212.0" y="346" font-size="16.5" class="node-small">source list</text>
+</g>
+<line x1="392.0" y1="305.0" x2="449.3333333333333" y2="305.0" stroke="#2563eb" stroke-width="3.2" stroke-linecap="round" marker-end="url(#arrowBlue)"/>
+<line x1="735.3333333333333" y1="305.0" x2="792.6666666666666" y2="305.0" stroke="#2563eb" stroke-width="3.2" stroke-linecap="round" marker-end="url(#arrowBlue)"/>
+<line x1="1078.6666666666665" y1="305.0" x2="1136.0" y2="305.0" stroke="#2563eb" stroke-width="3.2" stroke-linecap="round" marker-end="url(#arrowBlue)"/>
+<line x1="1422.0" y1="305.0" x2="1479.3333333333333" y2="305.0" stroke="#2563eb" stroke-width="3.2" stroke-linecap="round" marker-end="url(#arrowBlue)"/>
+<line x1="1765.3333333333333" y1="305.0" x2="1822.6666666666665" y2="305.0" stroke="#2563eb" stroke-width="3.2" stroke-linecap="round" marker-end="url(#arrowBlue)"/>
+<line x1="2108.6666666666665" y1="305.0" x2="2166.0" y2="305.0" stroke="#2563eb" stroke-width="3.2" stroke-linecap="round" marker-end="url(#arrowBlue)"/>
+<path d="M 1280 245 V 218 H 1966.7 V 239" fill="none" stroke="#2563eb" stroke-width="2.7" stroke-dasharray="8 8" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrowBlue)"/>
+<circle cx="1280" cy="245" r="5.5" fill="#2563eb" stroke="#ffffff" stroke-width="2"/>
+<text x="1623" y="206" font-size="15" text-anchor="middle" class="section-note">cache hit shortcut</text>
+<g>
+<rect x="72" y="500" width="2416" height="315" rx="28" fill="url(#bgGrad)" stroke="#86efac" stroke-width="2.2" filter="url(#shadow)"/>
+<text x="106" y="550" font-size="29" class="section-title">2. RAG retrieval &amp; generation details</text>
+<text x="2454" y="550" font-size="17" text-anchor="end" class="section-note">uses Elasticsearch for filtering/metadata and Qdrant for vector search</text>
+</g>
+<g>
+<rect x="124.0" y="590" width="280" height="120" rx="18" fill="url(#tealFill)" stroke="#0f766e" stroke-width="2.1" filter="url(#softShadow)"/>
+<circle cx="157.0" cy="624" r="17" fill="#0f766e"/>
+<text x="157.0" y="630" font-size="17" text-anchor="middle" class="step">1</text>
+<text x="182.0" y="630" font-size="21" class="node-title">Tag / Path Filter</text>
+<text x="152.0" y="664" font-size="16.5" class="node-small">extract #tag / quoted tag</text>
+<text x="152.0" y="691" font-size="16.5" class="node-small">narrow candidate files</text>
+</g>
+<g>
+<rect x="530.4" y="590" width="280" height="120" rx="18" fill="url(#tealFill)" stroke="#0f766e" stroke-width="2.1" filter="url(#softShadow)"/>
+<circle cx="563.4" cy="624" r="17" fill="#0f766e"/>
+<text x="563.4" y="630" font-size="17" text-anchor="middle" class="step">2</text>
+<text x="588.4" y="630" font-size="21" class="node-title">Hybrid Search</text>
+<text x="558.4" y="664" font-size="16.5" class="node-small">Elasticsearch filter</text>
+<text x="558.4" y="691" font-size="16.5" class="node-small">Qdrant vector search</text>
+</g>
+<g>
+<rect x="936.8" y="590" width="280" height="120" rx="18" fill="url(#tealFill)" stroke="#0f766e" stroke-width="2.1" filter="url(#softShadow)"/>
+<circle cx="969.8" cy="624" r="17" fill="#0f766e"/>
+<text x="969.8" y="630" font-size="17" text-anchor="middle" class="step">3</text>
+<text x="994.8" y="630" font-size="21" class="node-title">File Merge</text>
+<text x="964.8" y="664" font-size="16.5" class="node-small">limit × 3 chunks</text>
+<text x="964.8" y="691" font-size="16.5" class="node-small">merge by source file</text>
+</g>
+<g>
+<rect x="1343.1999999999998" y="590" width="280" height="120" rx="18" fill="url(#tealFill)" stroke="#0f766e" stroke-width="2.1" filter="url(#softShadow)"/>
+<circle cx="1376.1999999999998" cy="624" r="17" fill="#0f766e"/>
+<text x="1376.1999999999998" y="630" font-size="17" text-anchor="middle" class="step">4</text>
+<text x="1401.1999999999998" y="630" font-size="21" class="node-title">Context Builder</text>
+<text x="1371.1999999999998" y="664" font-size="16.5" class="node-small">dedupe parent_text</text>
+<text x="1371.1999999999998" y="691" font-size="16.5" class="node-small">token budget control</text>
+</g>
+<g>
+<rect x="1749.6" y="590" width="280" height="120" rx="18" fill="url(#tealFill)" stroke="#0f766e" stroke-width="2.1" filter="url(#softShadow)"/>
+<circle cx="1782.6" cy="624" r="17" fill="#0f766e"/>
+<text x="1782.6" y="630" font-size="17" text-anchor="middle" class="step">5</text>
+<text x="1807.6" y="630" font-size="21" class="node-title">OpenAI Answer</text>
+<text x="1777.6" y="664" font-size="16.5" class="node-small">grounded response</text>
+<text x="1777.6" y="691" font-size="16.5" class="node-small">language-aware output</text>
+</g>
+<g>
+<rect x="2156.0" y="590" width="280" height="120" rx="18" fill="url(#orangeFill)" stroke="#f59e0b" stroke-width="2.1" filter="url(#softShadow)"/>
+<circle cx="2189.0" cy="624" r="17" fill="#f59e0b"/>
+<text x="2189.0" y="630" font-size="17" text-anchor="middle" class="step">6</text>
+<text x="2214.0" y="630" font-size="21" class="node-title">Cache Write</text>
+<text x="2184.0" y="664" font-size="16.5" class="node-small">store final answer</text>
+<text x="2184.0" y="691" font-size="16.5" class="node-small">settings + history hash</text>
+</g>
+<line x1="422.0" y1="650.0" x2="510.4" y2="650.0" stroke="#0f766e" stroke-width="3.2" stroke-linecap="round" marker-end="url(#arrowTeal)"/>
+<line x1="828.4" y1="650.0" x2="916.8" y2="650.0" stroke="#0f766e" stroke-width="3.2" stroke-linecap="round" marker-end="url(#arrowTeal)"/>
+<line x1="1234.8" y1="650.0" x2="1323.1999999999998" y2="650.0" stroke="#0f766e" stroke-width="3.2" stroke-linecap="round" marker-end="url(#arrowTeal)"/>
+<line x1="1641.1999999999998" y1="650.0" x2="1729.6" y2="650.0" stroke="#0f766e" stroke-width="3.2" stroke-linecap="round" marker-end="url(#arrowTeal)"/>
+<line x1="2047.6" y1="650.0" x2="2136.0" y2="650.0" stroke="#0f766e" stroke-width="3.2" stroke-linecap="round" marker-end="url(#arrowTeal)"/>
+<rect x="955" y="752" width="650" height="54" rx="27" fill="#fff" stroke="#cbd5e1" stroke-width="2"/>
+<text x="1280.0" y="787" font-size="18" text-anchor="middle" class="callout">Row 1 “RAG Pipeline” expands into the steps shown here.</text>
+<g>
+<rect x="72" y="860" width="2416" height="300" rx="28" fill="url(#bgGrad)" stroke="#86efac" stroke-width="2.2" filter="url(#shadow)"/>
+<text x="106" y="910" font-size="29" class="section-title">3. Indexing &amp; storage flow</text>
+<text x="2454" y="910" font-size="17" text-anchor="end" class="section-note">keeps Qdrant and Elasticsearch ready for retrieval</text>
+</g>
+<g>
+<rect x="124.0" y="955" width="252" height="120" rx="18" fill="url(#greenFill)" stroke="#059669" stroke-width="2.1" filter="url(#softShadow)"/>
+<circle cx="157.0" cy="989" r="17" fill="#059669"/>
+<text x="157.0" y="995" font-size="17" text-anchor="middle" class="step">1</text>
+<text x="182.0" y="995" font-size="21" class="node-title">Obsidian Vault</text>
+<text x="152.0" y="1029" font-size="16.5" class="node-small">Markdown notes</text>
+<text x="152.0" y="1056" font-size="16.5" class="node-small">read-only Docker mount</text>
+</g>
+<g>
+<rect x="467.3333333333333" y="955" width="252" height="120" rx="18" fill="url(#greenFill)" stroke="#059669" stroke-width="2.1" filter="url(#softShadow)"/>
+<circle cx="500.3333333333333" cy="989" r="17" fill="#059669"/>
+<text x="500.3333333333333" y="995" font-size="17" text-anchor="middle" class="step">2</text>
+<text x="525.3333333333333" y="995" font-size="21" class="node-title">Sync Worker</text>
+<text x="495.3333333333333" y="1029" font-size="16.5" class="node-small">walk VAULT_PATH</text>
+<text x="495.3333333333333" y="1056" font-size="16.5" class="node-small">extract tags + metadata</text>
+</g>
+<g>
+<rect x="810.6666666666666" y="955" width="252" height="120" rx="18" fill="url(#greenFill)" stroke="#059669" stroke-width="2.1" filter="url(#softShadow)"/>
+<circle cx="843.6666666666666" cy="989" r="17" fill="#059669"/>
+<text x="843.6666666666666" y="995" font-size="17" text-anchor="middle" class="step">3</text>
+<text x="868.6666666666666" y="995" font-size="21" class="node-title">Change Detect</text>
+<text x="838.6666666666666" y="1029" font-size="16.5" class="node-small">new / updated / deleted</text>
+<text x="838.6666666666666" y="1056" font-size="16.5" class="node-small">mtime + MD5 hash</text>
+</g>
+<g>
+<rect x="1154.0" y="955" width="252" height="120" rx="18" fill="url(#greenFill)" stroke="#059669" stroke-width="2.1" filter="url(#softShadow)"/>
+<circle cx="1187.0" cy="989" r="17" fill="#059669"/>
+<text x="1187.0" y="995" font-size="17" text-anchor="middle" class="step">4</text>
+<text x="1212.0" y="995" font-size="21" class="node-title">Header Chunking</text>
+<text x="1182.0" y="1029" font-size="16.5" class="node-small">section-aware chunks</text>
+<text x="1182.0" y="1056" font-size="16.5" class="node-small">512 tokens / 50 overlap</text>
+</g>
+<g>
+<rect x="1497.3333333333333" y="955" width="252" height="120" rx="18" fill="url(#greenFill)" stroke="#059669" stroke-width="2.1" filter="url(#softShadow)"/>
+<circle cx="1530.3333333333333" cy="989" r="17" fill="#059669"/>
+<text x="1530.3333333333333" y="995" font-size="17" text-anchor="middle" class="step">5</text>
+<text x="1555.3333333333333" y="995" font-size="21" class="node-title">Embeddings</text>
+<text x="1525.3333333333333" y="1029" font-size="16.5" class="node-small">text-embedding-3-small</text>
+<text x="1525.3333333333333" y="1056" font-size="16.5" class="node-small">filename + chunk text</text>
+</g>
+<g>
+<rect x="1840.6666666666665" y="955" width="252" height="120" rx="18" fill="url(#greenFill)" stroke="#059669" stroke-width="2.1" filter="url(#softShadow)"/>
+<circle cx="1873.6666666666665" cy="989" r="17" fill="#059669"/>
+<text x="1873.6666666666665" y="995" font-size="17" text-anchor="middle" class="step">6</text>
+<text x="1898.6666666666665" y="995" font-size="21" class="node-title">Qdrant Store</text>
+<text x="1868.6666666666665" y="1029" font-size="16.5" class="node-small">chunk vectors</text>
+<text x="1868.6666666666665" y="1056" font-size="16.5" class="node-small">payload indexes</text>
+</g>
+<g>
+<rect x="2184.0" y="955" width="252" height="120" rx="18" fill="url(#greenFill)" stroke="#059669" stroke-width="2.1" filter="url(#softShadow)"/>
+<circle cx="2217.0" cy="989" r="17" fill="#059669"/>
+<text x="2217.0" y="995" font-size="17" text-anchor="middle" class="step">7</text>
+<text x="2242.0" y="995" font-size="21" class="node-title">ES Index</text>
+<text x="2212.0" y="1029" font-size="16.5" class="node-small">file text + tags</text>
+<text x="2212.0" y="1056" font-size="16.5" class="node-small">metadata index</text>
+</g>
+<line x1="392.0" y1="1015.0" x2="449.3333333333333" y2="1015.0" stroke="#059669" stroke-width="3.2" stroke-linecap="round" marker-end="url(#arrowGreen)"/>
+<line x1="735.3333333333333" y1="1015.0" x2="792.6666666666666" y2="1015.0" stroke="#059669" stroke-width="3.2" stroke-linecap="round" marker-end="url(#arrowGreen)"/>
+<line x1="1078.6666666666665" y1="1015.0" x2="1136.0" y2="1015.0" stroke="#059669" stroke-width="3.2" stroke-linecap="round" marker-end="url(#arrowGreen)"/>
+<line x1="1422.0" y1="1015.0" x2="1479.3333333333333" y2="1015.0" stroke="#059669" stroke-width="3.2" stroke-linecap="round" marker-end="url(#arrowGreen)"/>
+<line x1="1765.3333333333333" y1="1015.0" x2="1822.6666666666665" y2="1015.0" stroke="#059669" stroke-width="3.2" stroke-linecap="round" marker-end="url(#arrowGreen)"/>
+<line x1="2108.6666666666665" y1="1015.0" x2="2166.0" y2="1015.0" stroke="#059669" stroke-width="3.2" stroke-linecap="round" marker-end="url(#arrowGreen)"/>
+<rect x="120" y="1225" width="1110" height="66" rx="24" fill="#fff" stroke="#cbd5e1" stroke-width="2"/>
+<text x="154" y="1267" font-size="20" class="footer">Quality &amp; Ops: Docker Compose · pytest/lint/build · .env ignored · bounded knobs</text>
+<rect x="1330" y="1225" width="1110" height="66" rx="24" fill="#fff" stroke="#cbd5e1" stroke-width="2"/>
+<text x="1364" y="1267" font-size="20" class="footer">Operating rules: independent questions ignore history · indexing clears stale cache</text>
+<rect x="270" y="1334" width="2020" height="44" rx="18" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1.5"/>
+<text x="1280" y="1363" font-size="16" text-anchor="middle" class="section-note">Key services: React UI · FastAPI · Redis · Elasticsearch · Qdrant · OpenAI · Sync Worker · Obsidian Vault</text>
+</svg>

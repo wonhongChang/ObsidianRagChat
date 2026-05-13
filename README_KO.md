@@ -12,6 +12,8 @@ Obsidian 노트를 RAG 검색 시스템으로 동기화하고, GPT와 대화하�
 
 ## 아키텍처
 
+![Obsidian RAG Chat 아키텍처](assets/architecture/obsidian_rag_architecture_enterprise.png)
+
 ```text
 사용자 브라우저 :3000
     |

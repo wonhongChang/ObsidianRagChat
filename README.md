@@ -12,6 +12,8 @@ Turn an Obsidian vault into a multilingual RAG chat interface with semantic sear
 
 ## Architecture
 
+![Obsidian RAG Chat architecture](assets/architecture/obsidian_rag_architecture_enterprise.png)
+
 ```text
 Browser :3000
     |

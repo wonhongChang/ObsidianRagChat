@@ -12,6 +12,8 @@ ObsidianノートをRAGシステムに変換してGPTと対話するWebインタ
 
 ## アーキテクチャ
 
+![Obsidian RAG Chat アーキテクチャ](assets/architecture/obsidian_rag_architecture_enterprise.png)
+
 ```
 ユーザーブラウザ :3000
     │
