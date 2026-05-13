@@ -45,25 +45,25 @@ const COPY = {
   },
   en: {
     notes: (count: number) => `${count} notes`,
-    topK: 'Top notes',
-    recommended: 'Recommended 5',
+    topK: 'Sources',
+    recommended: 'Rec 5',
     normal: 'Normal',
     slow: 'Slow',
-    responseLanguage: 'Answer language',
-    maxToken: 'Max token mode',
-    clear: 'Clear chat',
-    noStreaming: 'No streaming',
+    responseLanguage: 'Lang',
+    maxToken: 'Max tokens',
+    clear: 'Clear',
+    noStreaming: 'No stream',
   },
   ja: {
     notes: (count: number) => `${count}件のノート`,
-    topK: '参照ノート数',
-    recommended: '推奨 5件',
+    topK: '参照',
+    recommended: 'おすすめ 5件',
     normal: '通常',
     slow: '遅め',
-    responseLanguage: '回答言語',
-    maxToken: '最大トークンモード',
-    clear: '会話をクリア',
-    noStreaming: 'ストリーミング非対応',
+    responseLanguage: '言語',
+    maxToken: '最大トークン',
+    clear: 'クリア',
+    noStreaming: '非ストリーム',
   },
 } satisfies Record<ResponseLanguage, {
   notes: (count: number) => string;
@@ -88,9 +88,9 @@ export function SettingsBar({ settings, onChange, notesCount, onClear, canClear 
   };
 
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center gap-y-1.5 sm:gap-y-0 sm:gap-x-4 px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-xs text-gray-600 dark:text-gray-400">
+    <div className="flex flex-col sm:flex-row sm:items-center gap-y-1.5 sm:gap-y-0 sm:gap-x-3 px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-xs text-gray-600 dark:text-gray-400">
       {/* 그룹1: 노트 수 + 검색 노트 수 */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2.5">
         {notesCount > 0 && (
           <span className="text-violet-600 dark:text-violet-400 font-medium whitespace-nowrap">
             {copy.notes(notesCount)}
@@ -120,7 +120,7 @@ export function SettingsBar({ settings, onChange, notesCount, onClear, canClear 
       </div>
 
       {/* 그룹2: 모델 + 최대 토큰 모드 + 대화 초기화 */}
-      <div className="flex flex-wrap items-center gap-3 sm:ml-auto">
+      <div className="flex flex-wrap items-center gap-2.5 sm:ml-auto">
         <label className="flex items-center gap-1.5">
           <span className="whitespace-nowrap">{copy.responseLanguage}</span>
           <select
@@ -161,7 +161,7 @@ export function SettingsBar({ settings, onChange, notesCount, onClear, canClear 
         {canClear && (
           <button
             onClick={onClear}
-            className="ml-auto sm:ml-0 px-3 py-1 rounded bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors whitespace-nowrap"
+            className="ml-auto sm:ml-0 px-2.5 py-1 rounded bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors whitespace-nowrap"
           >
             {copy.clear}
           </button>
