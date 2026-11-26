@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="2560" height="1440" viewBox="0 0 2560 1440" role="img" aria-labelledby="title desc">
 <title id="title">Obsidian RAG Chat Architecture</title>
-<desc id="desc">Clean grid-aligned architecture diagram for Obsidian RAG chat.</desc>
+<desc id="desc">Loopback HTTP chat, Elasticsearch text retrieval, optional vector search, and incremental indexing.</desc>
 <defs>
   <filter id="shadow" x="-12%" y="-12%" width="124%" height="136%"><feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#0f172a" flood-opacity="0.07"/></filter>
   <filter id="softShadow" x="-12%" y="-12%" width="124%" height="130%"><feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#0f172a" flood-opacity="0.05"/></filter>
@@ -38,15 +38,15 @@
 <circle cx="157.0" cy="279" r="17" fill="#2563eb"/>
 <text x="157.0" y="285" font-size="17" text-anchor="middle" class="step">1</text>
 <text x="182.0" y="285" font-size="21" class="node-title">Browser UI</text>
-<text x="152.0" y="319" font-size="16.5" class="node-small">React + Vite chat</text>
+<text x="152.0" y="319" font-size="16.5" class="node-small">127.0.0.1:3000</text>
 <text x="152.0" y="346" font-size="16.5" class="node-small">sources / usage</text>
 </g>
 <g>
 <rect x="467.3333333333333" y="245" width="252" height="120" rx="18" fill="url(#purpleFill)" stroke="#7c3aed" stroke-width="2.1" filter="url(#softShadow)"/>
 <circle cx="500.3333333333333" cy="279" r="17" fill="#7c3aed"/>
 <text x="500.3333333333333" y="285" font-size="17" text-anchor="middle" class="step">2</text>
-<text x="525.3333333333333" y="285" font-size="21" class="node-title">FastAPI API</text>
-<text x="495.3333333333333" y="319" font-size="16.5" class="node-small">HTTPS endpoint</text>
+<text x="525.3333333333333" y="285" font-size="21" class="node-title">FastAPI</text>
+<text x="495.3333333333333" y="319" font-size="16.5" class="node-small">nginx HTTP proxy</text>
 <text x="495.3333333333333" y="346" font-size="16.5" class="node-small">request validation</text>
 </g>
 <g>
@@ -55,7 +55,7 @@
 <text x="843.6666666666666" y="285" font-size="17" text-anchor="middle" class="step">3</text>
 <text x="868.6666666666666" y="285" font-size="21" class="node-title">Question Router</text>
 <text x="838.6666666666666" y="319" font-size="16.5" class="node-small">independent / follow-up</text>
-<text x="838.6666666666666" y="346" font-size="16.5" class="node-small">standalone rewrite</text>
+<text x="838.6666666666666" y="346" font-size="16.5" class="node-small">choose history scope</text>
 </g>
 <g>
 <rect x="1154.0" y="245" width="252" height="120" rx="18" fill="url(#orangeFill)" stroke="#f59e0b" stroke-width="2.1" filter="url(#softShadow)"/>
@@ -71,14 +71,14 @@
 <text x="1530.3333333333333" y="285" font-size="17" text-anchor="middle" class="step">5</text>
 <text x="1555.3333333333333" y="285" font-size="21" class="node-title">RAG Pipeline</text>
 <text x="1525.3333333333333" y="319" font-size="16.5" class="node-small">retrieval + context</text>
-<text x="1525.3333333333333" y="346" font-size="16.5" class="node-small">OpenAI answer</text>
+<text x="1525.3333333333333" y="346" font-size="16.5" class="node-small">rewrite follow-ups on miss</text>
 </g>
 <g>
 <rect x="1840.6666666666665" y="245" width="252" height="120" rx="18" fill="url(#blueFill)" stroke="#2563eb" stroke-width="2.1" filter="url(#softShadow)"/>
 <circle cx="1873.6666666666665" cy="279" r="17" fill="#2563eb"/>
 <text x="1873.6666666666665" y="285" font-size="17" text-anchor="middle" class="step">6</text>
 <text x="1898.6666666666665" y="285" font-size="21" class="node-title">SSE Stream</text>
-<text x="1868.6666666666665" y="319" font-size="16.5" class="node-small">token events</text>
+<text x="1868.6666666666665" y="319" font-size="16.5" class="node-small">Responses text deltas</text>
 <text x="1868.6666666666665" y="346" font-size="16.5" class="node-small">sources + done</text>
 </g>
 <g>
@@ -101,7 +101,7 @@
 <g>
 <rect x="72" y="500" width="2416" height="315" rx="28" fill="url(#bgGrad)" stroke="#86efac" stroke-width="2.2" filter="url(#shadow)"/>
 <text x="106" y="550" font-size="29" class="section-title">2. RAG retrieval &amp; generation details</text>
-<text x="2454" y="550" font-size="17" text-anchor="end" class="section-note">uses Elasticsearch for filtering/metadata and Qdrant for vector search</text>
+<text x="2454" y="550" font-size="17" text-anchor="end" class="section-note">lexical by default; hybrid requires an embeddings key and Qdrant</text>
 </g>
 <g>
 <rect x="124.0" y="590" width="280" height="120" rx="18" fill="url(#tealFill)" stroke="#0f766e" stroke-width="2.1" filter="url(#softShadow)"/>
@@ -115,32 +115,32 @@
 <rect x="530.4" y="590" width="280" height="120" rx="18" fill="url(#tealFill)" stroke="#0f766e" stroke-width="2.1" filter="url(#softShadow)"/>
 <circle cx="563.4" cy="624" r="17" fill="#0f766e"/>
 <text x="563.4" y="630" font-size="17" text-anchor="middle" class="step">2</text>
-<text x="588.4" y="630" font-size="21" class="node-title">Hybrid Search</text>
-<text x="558.4" y="664" font-size="16.5" class="node-small">Elasticsearch filter</text>
-<text x="558.4" y="691" font-size="16.5" class="node-small">Qdrant vector search</text>
+<text x="588.4" y="630" font-size="21" class="node-title">Search Mode</text>
+<text x="558.4" y="664" font-size="16.5" class="node-small">lexical: Elasticsearch</text>
+<text x="558.4" y="691" font-size="16.5" class="node-small">hybrid: vector + name ranks</text>
 </g>
 <g>
 <rect x="936.8" y="590" width="280" height="120" rx="18" fill="url(#tealFill)" stroke="#0f766e" stroke-width="2.1" filter="url(#softShadow)"/>
 <circle cx="969.8" cy="624" r="17" fill="#0f766e"/>
 <text x="969.8" y="630" font-size="17" text-anchor="middle" class="step">3</text>
 <text x="994.8" y="630" font-size="21" class="node-title">File Merge</text>
-<text x="964.8" y="664" font-size="16.5" class="node-small">limit × 3 chunks</text>
-<text x="964.8" y="691" font-size="16.5" class="node-small">merge by source file</text>
+<text x="964.8" y="664" font-size="16.5" class="node-small">group results by note</text>
+<text x="964.8" y="691" font-size="16.5" class="node-small">keep supporting chunks</text>
 </g>
 <g>
 <rect x="1343.1999999999998" y="590" width="280" height="120" rx="18" fill="url(#tealFill)" stroke="#0f766e" stroke-width="2.1" filter="url(#softShadow)"/>
 <circle cx="1376.1999999999998" cy="624" r="17" fill="#0f766e"/>
 <text x="1376.1999999999998" y="630" font-size="17" text-anchor="middle" class="step">4</text>
 <text x="1401.1999999999998" y="630" font-size="21" class="node-title">Context Builder</text>
-<text x="1371.1999999999998" y="664" font-size="16.5" class="node-small">dedupe parent_text</text>
-<text x="1371.1999999999998" y="691" font-size="16.5" class="node-small">token budget control</text>
+<text x="1371.1999999999998" y="664" font-size="16.5" class="node-small">matched evidence first</text>
+<text x="1371.1999999999998" y="691" font-size="16.5" class="node-small">bounded neighbor text</text>
 </g>
 <g>
 <rect x="1749.6" y="590" width="280" height="120" rx="18" fill="url(#tealFill)" stroke="#0f766e" stroke-width="2.1" filter="url(#softShadow)"/>
 <circle cx="1782.6" cy="624" r="17" fill="#0f766e"/>
 <text x="1782.6" y="630" font-size="17" text-anchor="middle" class="step">5</text>
 <text x="1807.6" y="630" font-size="21" class="node-title">OpenAI Answer</text>
-<text x="1777.6" y="664" font-size="16.5" class="node-small">grounded response</text>
+<text x="1777.6" y="664" font-size="16.5" class="node-small">gpt-6-luna · Responses API</text>
 <text x="1777.6" y="691" font-size="16.5" class="node-small">language-aware output</text>
 </g>
 <g>
@@ -161,7 +161,7 @@
 <g>
 <rect x="72" y="860" width="2416" height="300" rx="28" fill="url(#bgGrad)" stroke="#86efac" stroke-width="2.2" filter="url(#shadow)"/>
 <text x="106" y="910" font-size="29" class="section-title">3. Indexing &amp; storage flow</text>
-<text x="2454" y="910" font-size="17" text-anchor="end" class="section-note">keeps Qdrant and Elasticsearch ready for retrieval</text>
+<text x="2454" y="910" font-size="17" text-anchor="end" class="section-note">Elasticsearch in both modes; dashed steps run only in hybrid mode</text>
 </g>
 <g>
 <rect x="124.0" y="955" width="252" height="120" rx="18" fill="url(#greenFill)" stroke="#059669" stroke-width="2.1" filter="url(#softShadow)"/>
@@ -185,7 +185,7 @@
 <text x="843.6666666666666" y="995" font-size="17" text-anchor="middle" class="step">3</text>
 <text x="868.6666666666666" y="995" font-size="21" class="node-title">Change Detect</text>
 <text x="838.6666666666666" y="1029" font-size="16.5" class="node-small">new / updated / deleted</text>
-<text x="838.6666666666666" y="1056" font-size="16.5" class="node-small">mtime + MD5 hash</text>
+<text x="838.6666666666666" y="1056" font-size="16.5" class="node-small">per-index hash check</text>
 </g>
 <g>
 <rect x="1154.0" y="955" width="252" height="120" rx="18" fill="url(#greenFill)" stroke="#059669" stroke-width="2.1" filter="url(#softShadow)"/>
@@ -221,14 +221,15 @@
 </g>
 <line x1="392.0" y1="1015.0" x2="449.3333333333333" y2="1015.0" stroke="#059669" stroke-width="3.2" stroke-linecap="round" marker-end="url(#arrowGreen)"/>
 <line x1="735.3333333333333" y1="1015.0" x2="792.6666666666666" y2="1015.0" stroke="#059669" stroke-width="3.2" stroke-linecap="round" marker-end="url(#arrowGreen)"/>
-<line x1="1078.6666666666665" y1="1015.0" x2="1136.0" y2="1015.0" stroke="#059669" stroke-width="3.2" stroke-linecap="round" marker-end="url(#arrowGreen)"/>
-<line x1="1422.0" y1="1015.0" x2="1479.3333333333333" y2="1015.0" stroke="#059669" stroke-width="3.2" stroke-linecap="round" marker-end="url(#arrowGreen)"/>
-<line x1="1765.3333333333333" y1="1015.0" x2="1822.6666666666665" y2="1015.0" stroke="#059669" stroke-width="3.2" stroke-linecap="round" marker-end="url(#arrowGreen)"/>
-<line x1="2108.6666666666665" y1="1015.0" x2="2166.0" y2="1015.0" stroke="#059669" stroke-width="3.2" stroke-linecap="round" marker-end="url(#arrowGreen)"/>
+<line x1="1078.6666666666665" y1="1015.0" x2="1136.0" y2="1015.0" stroke="#059669" stroke-dasharray="8 6" stroke-width="3.2" stroke-linecap="round" marker-end="url(#arrowGreen)"/>
+<line x1="1422.0" y1="1015.0" x2="1479.3333333333333" y2="1015.0" stroke="#059669" stroke-dasharray="8 6" stroke-width="3.2" stroke-linecap="round" marker-end="url(#arrowGreen)"/>
+<line x1="1765.3333333333333" y1="1015.0" x2="1822.6666666666665" y2="1015.0" stroke="#059669" stroke-dasharray="8 6" stroke-width="3.2" stroke-linecap="round" marker-end="url(#arrowGreen)"/>
+<path d="M 937 1079 V 1120 H 2310 V 1081" fill="none" stroke="#059669" stroke-width="3.2" stroke-linejoin="round" marker-end="url(#arrowGreen)"/>
+<text x="1623" y="1109" font-size="15.5" text-anchor="middle" class="callout">Both modes: changed documents update the Elasticsearch text index</text>
 <rect x="120" y="1225" width="1110" height="66" rx="24" fill="#fff" stroke="#cbd5e1" stroke-width="2"/>
 <text x="154" y="1267" font-size="20" class="footer">Quality &amp; Ops: Docker Compose · pytest/lint/build · .env ignored · bounded knobs</text>
 <rect x="1330" y="1225" width="1110" height="66" rx="24" fill="#fff" stroke="#cbd5e1" stroke-width="2"/>
-<text x="1364" y="1267" font-size="20" class="footer">Operating rules: independent questions ignore history · indexing clears stale cache</text>
+<text x="1364" y="1267" font-size="20" class="footer">Operating rules: independent questions ignore history · cache invalidation is best effort</text>
 <rect x="270" y="1334" width="2020" height="44" rx="18" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1.5"/>
 <text x="1280" y="1363" font-size="16" text-anchor="middle" class="section-note">Key services: React UI · FastAPI · Redis · Elasticsearch · Qdrant · OpenAI · Sync Worker · Obsidian Vault</text>
 </svg>

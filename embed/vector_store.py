@@ -38,37 +38,43 @@ def ensure_collection_exists(vector_size):
         print("✅ 태그/경로 필드 인덱스 생성 완료")
 
 def get_existing_documents():
-    """Qdrant에 있는 모든 청크를 path 기준으로 집계하여 반환.
-    Returns: {path: {"chunk_ids": [id, ...], "hash": str, "mtime": float}}
-    """
-    try:
-        existing_docs = {}
-        offset = None
-        while True:
-            result, next_offset = client.scroll(
-                collection_name=COLLECTION_NAME,
-                limit=1000,
-                offset=offset,
-                with_payload=True,
-                with_vectors=False
-            )
-            for point in result:
-                path = point.payload.get("path")
-                if path:
-                    if path not in existing_docs:
-                        existing_docs[path] = {
-                            "chunk_ids": [],
-                            "hash": point.payload.get("hash", ""),
-                            "mtime": point.payload.get("mtime", 0)
-                        }
-                    existing_docs[path]["chunk_ids"].append(point.id)
-            if next_offset is None:
-                break
-            offset = next_offset
-        return existing_docs
-    except Exception as e:
-        print(f"⚠️  기존 문서 조회 실패 (새 컬렉션일 수 있음): {e}")
+    """Read document state; incomplete or mixed generations must be retried."""
+    if not any(c.name == COLLECTION_NAME for c in client.get_collections().collections):
         return {}
+    existing_docs = {}
+    offset = None
+    while True:
+        points, offset = client.scroll(
+            collection_name=COLLECTION_NAME,
+            limit=1000,
+            offset=offset,
+            with_payload=True,
+            with_vectors=False,
+        )
+        for point in points:
+            payload = point.payload or {}
+            path = payload.get("path")
+            if not path:
+                continue
+            state = existing_docs.setdefault(path, {
+                "chunk_ids": [], "hashes": set(), "counts": set(),
+                "mtime": payload.get("mtime", 0),
+            })
+            state["chunk_ids"].append(point.id)
+            state["hashes"].add(payload.get("hash"))
+            state["counts"].add(payload.get("chunk_count"))
+        if offset is None:
+            break
+
+    for state in existing_docs.values():
+        hashes = state.pop("hashes")
+        counts = state.pop("counts")
+        # Legacy points have no count; keep them readable without a paid full reindex.
+        complete = len(hashes) == 1 and (
+            counts == {None} or counts == {len(state["chunk_ids"])}
+        )
+        state["hash"] = next(iter(hashes)) if complete else None
+    return existing_docs
 
 def upload_vectors_incremental(documents, vectors):
     """

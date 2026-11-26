@@ -6,7 +6,5 @@ fastapi
 uvicorn
 jinja2
 python-multipart
-elasticsearch==8.18.0
+elasticsearch==8.19.3
 redis==5.0.1
-pytest==7.4.3
-pytest-mock==3.12.0

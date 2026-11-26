@@ -1,57 +1,18 @@
-# ユーティリティスクリプト
+# 評価・保守スクリプト
 
-管理・メンテナンス用スクリプト一覧です。
+## セットアップの確認
 
----
+まず `curl http://127.0.0.1:3000/health` でサーバーのモデルと検索モードを確認してください。キーやノートの内容は表示しません。この確認だけで外部モデルへのアクセスや検索精度が検証されたことにはなりません。
 
-## clear_cache.py
+| スクリプト | 実行環境 | 処理と費用 |
+|---|---|---|
+| `evaluate_rag.py` | リポジトリのローカル仮想環境 | `python -m scripts.evaluate_rag` は合成データの根拠保持のみを検証します。`--retrieval` を付けると有料の埋め込み API とインメモリ Qdrant によるベクトル検索を評価します。実際の保管庫や本番 DB は使用しません。 |
+| `smoke_luna.py` | 稼働中の web コンテナ | オプションです。モデルの利用権限を実際に確認するときだけ `docker compose exec web python -m scripts.smoke_luna --live` を実行してください。合成コンテキストで有料の生成リクエストを1回送ります。保管庫や DB にはアクセスせず、検索精度は測定しません。 |
 
-**用途**: Redis キャッシュ全削除
+測定条件と過去の結果は[評価ドキュメント](../tests/EVALUATION.md)を参照してください。通常のセットアップや CI に有料の確認は不要です。
 
-```bash
-docker-compose exec web python scripts/clear_cache.py
-```
+## 管理ツール
 
-**使用タイミング**
-- コード変更後に古いキャッシュを削除したいとき
-- テスト後のクリーンアップ
-
----
-
-## clear_qdrant.py
-
-**用途**: Qdrant コレクション全初期化 (ベクターデータ削除)
-
-```bash
-docker-compose exec web python scripts/clear_qdrant.py
-```
-
-> ⚠️ 全ベクターデータが削除されます。次回 sync 実行時に自動再生成されます。
-
-**使用タイミング**
-- ノートの埋め込みを最初からやり直したいとき
-- Qdrant コレクション構造を変更した後
-
----
-
-## add_qdrant_index.py
-
-**用途**: Qdrant `path` フィールドに keyword インデックスを追加 (検索性能向上)
-
-```bash
-docker-compose exec web python scripts/add_qdrant_index.py
-```
-
-> ℹ️ 一回限りの最適化スクリプト。実行済みの場合は再実行不要。
-
-**使用タイミング**
-- 初回インストール後にタグフィルター検索の性能を上げたいとき
-- `MatchAny` フィルターエラーが発生したとき
-
-
----
-
-## 注意事項
-
-- すべてのスクリプトは **Docker コンテナ内部** (`docker-compose exec web`) で実行してください
-- `clear_qdrant.py` 実行後は必ず `docker-compose restart sync` で再同期してください
+- `clear_cache.py`: 現在の Redis から `rag:*` の回答キャッシュのみを無効化します。Redis 全体は削除しません。
+- `add_qdrant_index.py`: 古いハイブリッド用コレクションに `path` のキーワードインデックスがない場合に追加するツールです。新規セットアップでは通常不要です。
+- `clear_qdrant.py`: 接続先の `obsidian_notes` コレクションを**確認なしで削除**します。検索の不調、モデル更新、キー変更への対処として実行しないでください。意図した復旧作業に限り、バックアップと復元手順を確かめてから使用してください。ベクトルを作り直す場合は費用がかかることがあります。

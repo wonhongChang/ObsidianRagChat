@@ -6,7 +6,8 @@ MAX_CHUNK_TOKENS = 512
 OVERLAP_TOKENS = 50
 MIN_CHUNK_TOKENS = 30
 
-_encoding = tiktoken.encoding_for_model("gpt-4o-mini")
+# Keep chunk boundaries compatible with previously indexed documents.
+_encoding = tiktoken.get_encoding("o200k_base")
 
 
 def _count_tokens(text: str) -> int:
@@ -52,7 +53,7 @@ def chunk_document(doc: dict) -> list:
     raw_chunks = _chunk_by_headers(text, MAX_CHUNK_TOKENS)
 
     def make_chunk(chunk_text: str, chunk_index: int) -> dict:
-        chunk_id_str = f"{doc['path']}::chunk::{chunk_index}"
+        chunk_id_str = f"{doc['path']}::{doc['hash']}::chunk::{chunk_index}"
         point_id = int(hashlib.md5(chunk_id_str.encode()).hexdigest(), 16) % (2 ** 63)
         return {
             "path": doc["path"],
@@ -63,7 +64,7 @@ def chunk_document(doc: dict) -> list:
             "section": _extract_section_title(chunk_text),
             "chunk_index": chunk_index,
             "chunk_text": chunk_text,
-            "parent_text": text[:4000],
+            "parent_text": "\n\n".join(raw_chunks[max(0, chunk_index - 1):chunk_index + 2]),
             "point_id": point_id,
         }
 
@@ -80,4 +81,6 @@ def chunk_document(doc: dict) -> list:
         # 짧은 노트도 변경 감지 상태가 안정되도록 최소 1개 청크는 생성한다.
         result.append(make_chunk(text.strip(), 0))
 
+    for chunk in result:
+        chunk["chunk_count"] = len(result)
     return result

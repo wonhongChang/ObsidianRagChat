@@ -8,7 +8,7 @@ services:
       dockerfile: Dockerfile.frontend
     container_name: obsidian-rag-frontend
     ports:
-      - "3000:80"
+      - "127.0.0.1:3000:80"
     depends_on:
       - web
     restart: unless-stopped
@@ -27,8 +27,9 @@ services:
     environment:
       - TZ=Asia/Tokyo
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - QDRANT_URL=${QDRANT_URL}
-      - QDRANT_API_KEY=${QDRANT_API_KEY}
+      - OPENAI_EMBEDDING_API_KEY=${OPENAI_EMBEDDING_API_KEY:-}
+      - QDRANT_URL=${QDRANT_URL:-}
+      - QDRANT_API_KEY=${QDRANT_API_KEY:-}
       - VAULT_PATH=/vault
       - REDIS_HOST=redis
       - REDIS_PORT=6379
@@ -59,9 +60,9 @@ services:
     container_name: obsidian-rag-sync
     environment:
       - TZ=Asia/Tokyo
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - QDRANT_URL=${QDRANT_URL}
-      - QDRANT_API_KEY=${QDRANT_API_KEY}
+      - OPENAI_EMBEDDING_API_KEY=${OPENAI_EMBEDDING_API_KEY:-}
+      - QDRANT_URL=${QDRANT_URL:-}
+      - QDRANT_API_KEY=${QDRANT_API_KEY:-}
       - VAULT_PATH=/vault
       - ELASTICSEARCH_HOST=http://elasticsearch:9200
       - REDIS_HOST=redis
@@ -84,20 +85,22 @@ services:
       - obsidian-network
 
   # ============================================
-  # Elasticsearch (8.18.0)
+  # Elasticsearch (8.19.26)
   # ============================================
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.18.0
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.19.26
     container_name: obsidian-elasticsearch
     environment:
       - discovery.type=single-node
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
       - xpack.security.enabled=false
       - xpack.security.enrollment.enabled=false
+      - path.repo=/mnt/obsidian-snapshots
     ports:
-      - "9201:9200"  # 외부:내부 (9200 포트 충돌 회피)
+      - "127.0.0.1:9201:9200"
     volumes:
       - elasticsearch-data:/usr/share/elasticsearch/data
+      - elasticsearch-snapshots:/mnt/obsidian-snapshots
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
@@ -114,14 +117,14 @@ services:
       - obsidian-network
 
   # ============================================
-  # Redis (7.2-alpine)
+  # Redis (7.2.17)
   # ============================================
   redis:
-    image: redis:7.2-alpine
+    image: redis:7.2.17-alpine
     container_name: obsidian-redis
     command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis-data:/data
     restart: unless-stopped
@@ -143,6 +146,8 @@ services:
 # ============================================
 volumes:
   elasticsearch-data:
+    driver: local
+  elasticsearch-snapshots:
     driver: local
   redis-data:
     driver: local

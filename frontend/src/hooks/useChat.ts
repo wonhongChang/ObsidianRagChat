@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { streamSSE } from '../api/stream';
+import { CHAT_MODEL } from '../types';
 import type { ApiMessage, ChatSettings, Message, Source, TokenUsage } from '../types';
 
 interface ChatStore {
@@ -46,7 +47,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
           id: assistantId,
           role: 'assistant',
           content: '',
-          model: settings.model,
+          model: CHAT_MODEL,
           responseLanguage: settings.responseLanguage,
           streaming: true,
         },
@@ -54,6 +55,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     });
 
     let accumulated = '';
+    let completed = false;
 
     try {
       for await (const event of streamSSE('/api/search/stream', {
@@ -61,9 +63,10 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         history: apiHistory,
         top_k: settings.topK,
         ignore_token_limit: settings.ignoreTokenLimit,
-        model: settings.model,
         response_language: settings.responseLanguage,
       })) {
+        if (event.type === 'error') throw new Error(String(event.message ?? 'Incomplete answer'));
+        if (event.type === 'done') completed = true;
         set((s) => ({
           messages: s.messages.map((m) => {
             if (m.id !== assistantId) return m;
@@ -81,7 +84,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
                 usage: event.usage as TokenUsage,
                 elapsedTime: event.elapsed_time as number,
                 cached: event.cached as boolean,
-                model: settings.model,
+                model: CHAT_MODEL,
                 responseLanguage: settings.responseLanguage,
               };
             }
@@ -89,6 +92,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
           }),
         }));
       }
+      if (!completed) throw new Error('Incomplete answer');
     } catch (err) {
       set((s) => ({
         messages: s.messages.map((m) =>

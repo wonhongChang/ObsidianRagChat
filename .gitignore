@@ -10,6 +10,14 @@ ENV/
 
 # Environment variables
 .env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.rdb
+*.aof
 
 # Log files
 *.log
@@ -19,6 +27,9 @@ ENV/
 # IDE
 .vscode/
 .idea/
+.claude/
+.codex/
+.pytest_cache/
 *.swp
 *.swo
 *~

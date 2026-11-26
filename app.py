@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List, Literal
 from rag.generator import generate_answer_with_rag, generate_followup_answer, generate_answer_stream, generate_followup_stream
+from rag.model_config import CHAT_MODEL, ChatModel, retrieval_mode
 from search.cache import get_cached_rag, set_cached_rag, clear_all_cache, get_cache_stats, normalize_query
 from search.question_detector import is_independent_question, save_query
 import uvicorn
@@ -32,14 +33,14 @@ class QueryRequest(BaseModel):
     query: str = Field(min_length=1, max_length=4000)
     top_k: int = Field(default=5, ge=1, le=50)  # 기본값 5개 (성능 최적화)
     ignore_token_limit: bool = False  # 토큰 제한 무시 옵션
-    model: Literal["gpt-4o-mini", "gpt-5-mini"] = "gpt-4o-mini"  # 사용할 모델
+    model: ChatModel = CHAT_MODEL
     response_language: ResponseLanguage = "auto"  # auto=질문 언어, ko/en/ja=고정 응답 언어
     history: List[Message] = Field(default_factory=list)
 
 
 @app.post("/api/search")
 async def search(query_request: QueryRequest):
-    """RAG 검색 API (Redis 캐싱 + GPT 독립 질문 감지)"""
+    """RAG 검색 API (Redis 캐싱 + 규칙 기반 독립 질문 감지)"""
     try:
         import hashlib
         import json
@@ -53,7 +54,7 @@ async def search(query_request: QueryRequest):
         is_independent = False
 
         if query_request.history and len(query_request.history) > 0:
-            # GPT-4o-mini로 독립 질문 감지
+            # 규칙 기반으로 독립 질문 감지
             is_independent = is_independent_question(query_request.query, query_request.history)
 
             # 독립 질문이면 history 무시
@@ -67,6 +68,7 @@ async def search(query_request: QueryRequest):
             str(query_request.top_k),
             str(query_request.ignore_token_limit),
             query_request.model,
+            retrieval_mode(),
             query_request.response_language
         ]
 
@@ -154,12 +156,12 @@ async def search(query_request: QueryRequest):
             "independent_question": is_independent  # 디버깅용
         }
     except Exception as e:
-        logger.exception("RAG search failed")
+        logger.error("RAG search failed (%s)", type(e).__name__)
         raise HTTPException(status_code=500, detail="RAG search failed") from e
 
 @app.post("/api/search/stream")
 async def search_stream(query_request: QueryRequest):
-    """SSE streaming RAG search — first token arrives within ~1s."""
+    """SSE streaming RAG search; latency depends on retrieval and generation."""
     import time
 
     start_time = time.time()
@@ -176,6 +178,7 @@ async def search_stream(query_request: QueryRequest):
         str(query_request.top_k),
         str(query_request.ignore_token_limit),
         query_request.model,
+        retrieval_mode(),
         query_request.response_language
     ]
     if effective_history and len(effective_history) > 0:
@@ -227,20 +230,29 @@ async def search_stream(query_request: QueryRequest):
         final_usage = {}
         final_elapsed = 0.0
 
-        for event_str in gen:
-            yield event_str
-            if event_str.startswith('data: '):
-                try:
+        completed = False
+        try:
+            for event_str in gen:
+                if event_str.startswith('data: '):
                     data = json.loads(event_str[6:])
+                    if data['type'] == 'error':
+                        yield event_str
+                        return
                     if data['type'] == 'token':
                         full_answer += data['content']
                     elif data['type'] == 'sources':
                         final_sources = data['sources']
                     elif data['type'] == 'done':
+                        completed = True
                         final_usage = data.get('usage', {})
                         final_elapsed = data.get('elapsed_time', 0.0)
-                except Exception:
-                    pass
+                yield event_str
+            if not completed:
+                raise RuntimeError("Incomplete model stream")
+        except Exception as e:
+            logger.error("Answer stream did not finish (%s)", type(e).__name__)
+            yield 'data: {"type":"error","message":"Answer generation did not finish."}\n\n'
+            return
 
         set_cached_rag(cache_key, {
             'answer': full_answer,
@@ -258,7 +270,7 @@ async def search_stream(query_request: QueryRequest):
 @app.get("/health")
 async def health():
     """헬스 체크"""
-    return {"status": "healthy"}
+    return {"status": "healthy", "model": CHAT_MODEL, "retrieval_mode": retrieval_mode()}
 
 @app.delete("/api/cache")
 async def clear_cache():
@@ -270,10 +282,8 @@ async def clear_cache():
             "message": "모든 캐시가 삭제되었습니다."
         }
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e)
-        }
+        logger.warning("Cache clear unavailable (%s)", type(e).__name__)
+        raise HTTPException(503, "Cache unavailable") from e
 
 @app.get("/api/cache/stats")
 async def cache_stats():
@@ -296,10 +306,8 @@ async def cache_stats():
             }
         }
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e)
-        }
+        logger.warning("Cache statistics unavailable (%s)", type(e).__name__)
+        raise HTTPException(503, "Cache unavailable") from e
 
 @app.get("/api/notes/count")
 async def get_notes_count():
@@ -316,11 +324,8 @@ async def get_notes_count():
             "count": total_count
         }
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-            "count": 0
-        }
+        logger.warning("Note count unavailable (%s)", type(e).__name__)
+        raise HTTPException(503, "Note index unavailable") from e
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=8000)

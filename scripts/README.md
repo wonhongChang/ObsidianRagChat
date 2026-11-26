@@ -1,57 +1,18 @@
-# 유틸리티 스크립트
+# 평가 및 유지보수 스크립트
 
-관리 및 유지보수를 위한 스크립트 모음입니다.
+## 설치 확인
 
----
+먼저 `curl http://127.0.0.1:3000/health`로 서버 모델과 검색 모드를 확인하세요. 키나 노트 내용은 출력하지 않으며, 이 확인만으로 외부 모델 접근이나 검색 품질이 검증되는 것은 아닙니다.
 
-## clear_cache.py
+| 스크립트 | 실행 환경 | 동작 및 비용 |
+|---|---|---|
+| `evaluate_rag.py` | 소스 체크아웃의 로컬 가상환경 | `python -m scripts.evaluate_rag`는 합성 데이터의 근거 보존만 검사합니다. `--retrieval`을 붙이면 유료 임베딩 API와 메모리 Qdrant로 벡터 검색을 별도 평가합니다. 실제 노트나 운영 DB는 사용하지 않습니다. |
+| `smoke_luna.py` | 실행 중인 web 컨테이너 | 선택 사항입니다. 실제 모델 권한을 검증해야 할 때만 `docker compose exec web python -m scripts.smoke_luna --live`를 실행하세요. 합성 근거로 유료 생성 요청을 한 번 보냅니다. 보관함이나 DB에는 접근하지 않으며 검색 품질 테스트가 아닙니다. |
 
-**용도**: Redis 캐시 전체 삭제
+자세한 전제와 과거 평가 결과는 [평가 문서](../tests/EVALUATION.md)를 확인하세요. 일반 설치나 CI에서 유료 확인을 실행할 필요는 없습니다.
 
-```bash
-docker-compose exec web python scripts/clear_cache.py
-```
+## 관리 도구
 
-**사용 시점**
-- 코드 변경 후 이전 캐시를 제거하고 싶을 때
-- 테스트 후 정리할 때
-
----
-
-## clear_qdrant.py
-
-**용도**: Qdrant 컬렉션 전체 초기화 (벡터 데이터 삭제)
-
-```bash
-docker-compose exec web python scripts/clear_qdrant.py
-```
-
-> ⚠️ 모든 벡터 데이터가 삭제됩니다. 다음 sync 실행 시 자동 재생성됩니다.
-
-**사용 시점**
-- 노트 임베딩을 처음부터 다시 생성하고 싶을 때
-- Qdrant 컬렉션 구조를 변경한 후
-
----
-
-## add_qdrant_index.py
-
-**용도**: Qdrant `path` 필드에 keyword 인덱스 추가 (검색 성능 향상)
-
-```bash
-docker-compose exec web python scripts/add_qdrant_index.py
-```
-
-> ℹ️ 일회성 최적화 스크립트. 이미 실행했다면 재실행 불필요.
-
-**사용 시점**
-- 최초 설치 후 태그 필터 검색 성능을 높이고 싶을 때
-- `MatchAny` 필터 오류가 발생할 때
-
-
----
-
-## 주의사항
-
-- 모든 스크립트는 **Docker 컨테이너 내부** (`docker-compose exec web`)에서 실행하세요
-- `clear_qdrant.py` 실행 후에는 반드시 `docker-compose restart sync`로 재동기화하세요
+- `clear_cache.py`: 현재 Redis의 `rag:*` 응답 캐시를 무효화합니다. Redis 전체를 비우는 명령이 아닙니다.
+- `add_qdrant_index.py`: 예전 하이브리드 컬렉션에 누락된 `path` 키워드 인덱스를 추가하는 관리 도구입니다. 새 컬렉션의 일반 설치 단계가 아닙니다.
+- `clear_qdrant.py`: 지정된 서버에서 `obsidian_notes` 컬렉션을 **확인 없이 삭제**합니다. 검색 문제 해결, 모델 변경, 키 교체를 위해 실행하지 마세요. 의도한 복구 작업에만 백업과 복원 절차를 확인한 뒤 사용하세요. 벡터 재생성은 비용이 들 수 있습니다.

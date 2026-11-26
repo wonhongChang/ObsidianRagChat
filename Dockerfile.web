@@ -4,10 +4,15 @@ WORKDIR /app
 
 # 의존성 설치
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN python -m pip install --no-cache-dir --upgrade pip==26.3 setuptools==84.2.1 \
+    && python -m pip install --no-cache-dir -r requirements.txt
 
 # 애플리케이션 코드 복사
-COPY . .
+COPY app.py ./
+COPY rag/ ./rag/
+COPY embed/ ./embed/
+COPY search/ ./search/
+COPY scripts/ ./scripts/
 
 # 포트 노출
 EXPOSE 8000

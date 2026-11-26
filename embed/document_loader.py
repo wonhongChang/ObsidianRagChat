@@ -49,7 +49,10 @@ def load_markdown_files(vault_path: str = VAULT_PATH):
         raise FileNotFoundError(f"Obsidian vault 경로를 찾을 수 없습니다: {vault_path}")
 
     documents = []
-    for root, _, files in os.walk(vault_path):
+    def fail_walk(error):
+        raise error
+
+    for root, _, files in os.walk(vault_path, onerror=fail_walk):
         for f in files:
             if f.endswith(".md"):
                 file_path = os.path.join(root, f)
@@ -78,8 +81,7 @@ def load_markdown_files(vault_path: str = VAULT_PATH):
                             "hash": file_hash
                         })
                 except Exception as e:
-                    print(f"⚠️  파일 읽기 실패 ({f}): {e}")
-                    continue
+                    raise RuntimeError(f"Markdown scan failed: {relative_path}") from e
     
     print(f"✅ {len(documents)}개의 마크다운 파일을 로드했습니다.")
     return documents

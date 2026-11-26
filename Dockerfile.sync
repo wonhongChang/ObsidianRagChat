@@ -4,10 +4,14 @@ WORKDIR /app
 
 # 의존성 설치
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN python -m pip install --no-cache-dir --upgrade pip==26.3 setuptools==84.2.1 \
+    && python -m pip install --no-cache-dir -r requirements.txt
 
 # 애플리케이션 코드 복사
-COPY . .
+COPY sync_documents.py ./
+COPY rag/__init__.py rag/model_config.py ./rag/
+COPY embed/ ./embed/
+COPY search/ ./search/
 
 # 데이터 디렉토리 생성
 RUN mkdir -p /app/data

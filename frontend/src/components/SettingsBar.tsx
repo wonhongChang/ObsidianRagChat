@@ -1,4 +1,4 @@
-import type { ChatModel, ChatSettings, ResponseLanguage } from '../types';
+import type { ChatSettings, ResponseLanguage } from '../types';
 
 interface Props {
   settings: ChatSettings;
@@ -7,11 +7,6 @@ interface Props {
   onClear: () => void;
   canClear: boolean;
 }
-
-const MODELS = [
-  { value: 'gpt-4o-mini', label: 'GPT-4o-mini' },
-  { value: 'gpt-5-mini', label: 'GPT-5-mini' },
-] satisfies Array<{ value: ChatModel; label: string }>;
 
 const LANGUAGES = [
   { value: 'auto', label: 'Auto' },
@@ -30,7 +25,6 @@ const COPY = {
     responseLanguage: '응답 언어',
     maxToken: '최대 토큰 모드',
     clear: '대화 초기화',
-    noStreaming: '스트리밍 미지원',
   },
   ko: {
     notes: (count: number) => `${count}개 노트`,
@@ -41,7 +35,6 @@ const COPY = {
     responseLanguage: '응답 언어',
     maxToken: '최대 토큰 모드',
     clear: '대화 초기화',
-    noStreaming: '스트리밍 미지원',
   },
   en: {
     notes: (count: number) => `${count} notes`,
@@ -52,7 +45,6 @@ const COPY = {
     responseLanguage: 'Lang',
     maxToken: 'Max tokens',
     clear: 'Clear',
-    noStreaming: 'No stream',
   },
   ja: {
     notes: (count: number) => `${count}件のノート`,
@@ -63,7 +55,6 @@ const COPY = {
     responseLanguage: '言語',
     maxToken: '最大トークン',
     clear: 'クリア',
-    noStreaming: '非ストリーム',
   },
 } satisfies Record<ResponseLanguage, {
   notes: (count: number) => string;
@@ -74,7 +65,6 @@ const COPY = {
   responseLanguage: string;
   maxToken: string;
   clear: string;
-  noStreaming: string;
 }>;
 
 export function SettingsBar({ settings, onChange, notesCount, onClear, canClear }: Props) {
@@ -134,21 +124,7 @@ export function SettingsBar({ settings, onChange, notesCount, onClear, canClear 
             ))}
           </select>
         </label>
-        <div className="flex items-center gap-1.5">
-          <select
-            aria-label="모델"
-            value={settings.model}
-            onChange={(e) => onChange({ ...settings, model: e.target.value as ChatModel })}
-            className="px-1.5 py-0.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800"
-          >
-            {MODELS.map((m) => (
-              <option key={m.value} value={m.value}>{m.label}</option>
-            ))}
-          </select>
-          {settings.model === 'gpt-5-mini' && (
-            <span className="whitespace-nowrap text-amber-500">{copy.noStreaming}</span>
-          )}
-        </div>
+        <span className="whitespace-nowrap">GPT-6 Luna</span>
         <label className="flex items-center gap-1.5 cursor-pointer">
           <input
             type="checkbox"

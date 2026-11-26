@@ -17,7 +17,7 @@ recent_queries = deque(maxlen=10)  # 최근 10개 질문 저장
 
 def is_independent_question(query: str, history: List) -> bool:
     """
-    질문이 독립적인지 판단 (규칙 기반 + GPT-4o-mini)
+    질문이 독립적인지 로컬 규칙으로 판단합니다. 모델을 호출하지 않습니다.
 
     Args:
         query: 현재 질문

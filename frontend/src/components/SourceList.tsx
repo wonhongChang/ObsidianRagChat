@@ -7,29 +7,27 @@ interface Props {
 }
 
 const COPY = {
-  auto: { sources: (count: number) => `출처 ${count}개`, average: '평균' },
-  ko: { sources: (count: number) => `출처 ${count}개`, average: '평균' },
-  en: { sources: (count: number) => `${count} sources`, average: 'avg' },
-  ja: { sources: (count: number) => `出典 ${count}件`, average: '平均' },
+  auto: { sources: (count: number) => `출처 ${count}개` },
+  ko: { sources: (count: number) => `출처 ${count}개` },
+  en: { sources: (count: number) => `${count} sources` },
+  ja: { sources: (count: number) => `出典 ${count}件` },
 } satisfies Record<ResponseLanguage, {
   sources: (count: number) => string;
-  average: string;
 }>;
 
 export function SourceList({ sources, responseLanguage }: Props) {
   const [open, setOpen] = useState(false);
-  const averageScore = sources.reduce((sum, src) => sum + src.score, 0) / sources.length;
   const copy = COPY[responseLanguage];
 
   return (
     <div className="mt-2 w-full rounded-lg border border-violet-200 bg-violet-50 text-sm dark:border-violet-900 dark:bg-violet-950/30">
       <button
         onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
         className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-violet-700 transition-colors hover:bg-violet-100 dark:text-violet-300 dark:hover:bg-violet-900/30"
       >
         <span className="text-xs transition-transform duration-200" style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
         <span className="font-medium">{copy.sources(sources.length)}</span>
-        <span className="ml-auto text-xs opacity-70">{copy.average} {(averageScore * 100).toFixed(1)}%</span>
       </button>
 
       {open && (
@@ -48,7 +46,7 @@ export function SourceList({ sources, responseLanguage }: Props) {
                   )}
                 </div>
                 <span className="shrink-0 text-xs text-gray-400">
-                  {(src.score * 100).toFixed(1)}%
+                  #{i + 1}
                 </span>
               </div>
               {src.tags && src.tags.length > 0 && (

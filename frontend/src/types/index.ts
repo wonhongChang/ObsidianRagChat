@@ -30,12 +30,12 @@ export interface TokenUsage {
   total_tokens: number;
 }
 
-export type ChatModel = 'gpt-4o-mini' | 'gpt-5-mini';
+export const CHAT_MODEL = 'gpt-6-luna' as const;
+export type ChatModel = typeof CHAT_MODEL;
 export type ResponseLanguage = 'auto' | 'ko' | 'en' | 'ja';
 
 export interface ChatSettings {
   topK: number;
   ignoreTokenLimit: boolean;
-  model: ChatModel;
   responseLanguage: ResponseLanguage;
 }

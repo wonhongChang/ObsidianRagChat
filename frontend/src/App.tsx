@@ -9,7 +9,6 @@ import type { ChatSettings, ResponseLanguage } from './types';
 const DEFAULT_SETTINGS: ChatSettings = {
   topK: 5,
   ignoreTokenLimit: false,
-  model: 'gpt-4o-mini',
   responseLanguage: 'auto',
 };
 

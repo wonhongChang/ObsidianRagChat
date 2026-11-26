@@ -1,13 +1,12 @@
 import os
 import sys
 import time
-from datetime import datetime
 from embed.document_loader import load_markdown_files
 from embed.embedder import embed_texts
-from embed.vector_store import get_existing_documents, client, COLLECTION_NAME, ensure_collection_exists
 from embed.chunker import chunk_document
+from rag.model_config import retrieval_mode
 from qdrant_client.models import PointStruct, PointIdsList
-from search.document_index import index_documents_bulk, delete_document
+from search.document_index import index_documents_bulk, delete_document, get_indexed_documents
 
 # ============================================
 # 설정
@@ -26,132 +25,91 @@ def clear_cache_safely():
 # 변경 감지 및 동기화
 # ============================================
 def sync_all():
-    """10분마다 전체 파일 체크 및 변경사항 처리"""
-    print(f"\n{'='*70}")
-    print(f"🔄 동기화 시작: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"{'='*70}\n")
-
-    # 1. 모든 마크다운 파일 로드
-    print("🔍 파일 로드 중...")
+    """Reconcile active indexes; never open or mutate Qdrant in lexical mode."""
     all_docs = load_markdown_files()
-
-    # 2. Qdrant의 기존 문서 가져오기
-    existing_docs = get_existing_documents()
-
-    # 3. 변경 감지
-    new_files = []
-    updated_files = []
-    unchanged_files = []
-
-    for doc in all_docs:
-        path = doc["path"]
-        if path not in existing_docs:
-            # 새 파일
-            new_files.append(doc)
-        elif doc["hash"] != existing_docs[path]["hash"]:
-            # 수정된 파일
-            updated_files.append(doc)
-        else:
-            # 변경 없음
-            unchanged_files.append(doc)
-
-    # 4. 삭제된 파일 감지
+    hybrid = retrieval_mode() == "hybrid"
+    if hybrid:
+        from embed.vector_store import get_existing_documents, client, COLLECTION_NAME, ensure_collection_exists
+        existing_docs = get_existing_documents()
+    else:
+        existing_docs = {}
+    indexed_docs = get_indexed_documents()
     current_paths = {doc["path"] for doc in all_docs}
-    existing_paths = set(existing_docs.keys())
-    deleted_paths = existing_paths - current_paths
+    to_embed = [
+        doc for doc in all_docs
+        if existing_docs.get(doc["path"], {}).get("hash") != doc["hash"]
+    ] if hybrid else []
+    to_index = [
+        doc for doc in all_docs if indexed_docs.get(doc["path"]) != doc["hash"]
+    ]
+    deleted_paths = (set(existing_docs) | set(indexed_docs)) - current_paths
+    stats = {
+        "vector_documents": len(to_embed),
+        "es_documents": len(to_index),
+        "deleted_documents": len(deleted_paths),
+    }
+    if not to_embed and not to_index and not deleted_paths:
+        return stats
 
-    # 5. 통계 출력
-    print(f"\n📊 변경 감지 결과:")
-    print(f"   • 새 파일: {len(new_files)}개")
-    print(f"   • 수정된 파일: {len(updated_files)}개")
-    print(f"   • 삭제된 파일: {len(deleted_paths)}개")
-    print(f"   • 변경 없음: {len(unchanged_files)}개")
-
-    # 6. 변경사항이 없으면 종료
-    if not new_files and not updated_files and not deleted_paths:
-        print("\n✅ 변경사항이 없습니다.")
-        print(f"{'='*70}")
-        return
-
-    # 7. 삭제된 파일 + 수정된 파일의 기존 청크 삭제
-    paths_to_delete_chunks = deleted_paths | {doc["path"] for doc in updated_files}
-    if paths_to_delete_chunks:
-        delete_ids = []
-        for path in paths_to_delete_chunks:
-            if path in existing_docs:
-                delete_ids.extend(existing_docs[path]["chunk_ids"])
-        if delete_ids:
-            client.delete(collection_name=COLLECTION_NAME, points_selector=PointIdsList(points=delete_ids))
-            print(f"\n🗑️  {len(delete_ids)}개 청크 삭제 완료")
-
-        for path in deleted_paths:
-            delete_document(path)
-
-    # 8. 새 파일 + 수정된 파일 처리
-    to_process = new_files + updated_files
-
-    if to_process:
-        print(f"\n⚡ {len(to_process)}개 파일 처리 중...")
-        for doc in to_process:
-            file_type = "🆕 NEW" if doc in new_files else "🔄 UPDATE"
-            print(f"   {file_type}: {doc['filename']}")
-
-        # 청크 분할
-        print(f"\n   ✂️  청크 분할 중...")
-        all_chunks = []
-        for doc in to_process:
-            all_chunks.extend(chunk_document(doc))
-        print(f"   → {len(to_process)}개 파일 → {len(all_chunks)}개 청크")
-
-        if not all_chunks:
-            print("   ⚠️  청크 없음 — 스킵")
-            return
-
-        # 임베딩 생성 (파일명 + 청크 텍스트)
-        print(f"\n   🧠 임베딩 생성 중...")
-        vectors = embed_texts([f"파일명: {c['filename']}\n{c['chunk_text']}" for c in all_chunks])
-
-        # Qdrant 업로드
-        print(f"   ⬆️  Qdrant 업로드 중...")
-        ensure_collection_exists(len(vectors[0]))
-
-        points = []
-        for chunk, vector in zip(all_chunks, vectors):
-            points.append(
+    mutated = False
+    try:
+        for doc in to_embed:
+            chunks = chunk_document(doc)
+            if not chunks:
+                raise ValueError("A non-empty indexed document must produce chunks")
+            vectors = embed_texts([
+                f"파일명: {chunk['filename']}\n{chunk['chunk_text']}" for chunk in chunks
+            ])
+            if len(vectors) != len(chunks) or any(not vector for vector in vectors):
+                raise ValueError("Incomplete embedding batch; existing vectors preserved")
+            if len({len(vector) for vector in vectors}) != 1:
+                raise ValueError("Inconsistent embedding dimensions")
+            ensure_collection_exists(len(vectors[0]))
+            points = [
                 PointStruct(
-                    id=chunk["point_id"],
-                    vector=vector,
-                    payload={
-                        "path": chunk["path"],
-                        "filename": chunk["filename"],
-                        "tags": chunk["tags"],
-                        "mtime": chunk["mtime"],
-                        "hash": chunk["hash"],
-                        "section": chunk["section"],
-                        "chunk_index": chunk["chunk_index"],
-                        "chunk_text": chunk["chunk_text"],
-                        "parent_text": chunk["parent_text"],
-                    }
+                    id=chunk["point_id"], vector=vector,
+                    payload={key: value for key, value in chunk.items() if key != "point_id"},
                 )
-            )
+                for chunk, vector in zip(chunks, vectors)
+            ]
+            # Hash-based IDs let old and new generations coexist during upload.
+            mutated = True
+            for i in range(0, len(points), 100):
+                client.upsert(
+                    collection_name=COLLECTION_NAME, points=points[i:i + 100], wait=True,
+                )
+            new_ids = {point.id for point in points}
+            stale_ids = [
+                point_id for point_id in existing_docs.get(doc["path"], {}).get("chunk_ids", [])
+                if point_id not in new_ids
+            ]
+            if stale_ids:
+                client.delete(
+                    collection_name=COLLECTION_NAME,
+                    points_selector=PointIdsList(points=stale_ids), wait=True,
+                )
 
-        batch_size = 100
-        for i in range(0, len(points), batch_size):
-            batch = points[i:i + batch_size]
-            client.upsert(collection_name=COLLECTION_NAME, points=batch)
-            print(f"   ⬆️  배치 {i//batch_size + 1}: {len(batch)}개 업로드")
-        print(f"   ✅ Qdrant 업로드 완료 ({len(points)}개 청크)")
+        if to_index:
+            mutated = True
+            index_documents_bulk(to_index)
 
-        # Elasticsearch 인덱싱 (파일 단위 전체 텍스트)
-        print(f"   📇 Elasticsearch 인덱싱 중...")
-        index_documents_bulk(to_process)
+        for path in sorted(deleted_paths):
+            mutated = True
+            ids = existing_docs.get(path, {}).get("chunk_ids", [])
+            if ids:
+                client.delete(
+                    collection_name=COLLECTION_NAME,
+                    points_selector=PointIdsList(points=ids), wait=True,
+                )
+            if path in indexed_docs:
+                delete_document(path)
+    finally:
+        # A failed request may still have partially changed an index.
+        if mutated:
+            clear_cache_safely()
 
-        print(f"\n✅ {len(to_process)}개 파일 ({len(all_chunks)}개 청크) 처리 완료")
-
-    # 문서 인덱싱이 반영된 뒤 오래된 RAG 응답 캐시를 무효화한다.
-    clear_cache_safely()
-
-    print(f"{'='*70}")
+    print(f"Sync completed: {stats}")
+    return stats
 
 
 # ============================================
@@ -173,7 +131,7 @@ def wait_for_elasticsearch(max_retries=30, delay=2):
                 return True
         except Exception as e:
             print(f"   시도 {i+1}/{max_retries}: 대기 중... ({delay}초)")
-            time.sleep(delay)
+        time.sleep(delay)
 
     print(f"❌ Elasticsearch 연결 실패 (최대 재시도 횟수 초과)")
     return False

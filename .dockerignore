@@ -1,25 +1,24 @@
-.git
-.github
-.idea
-.pytest_cache
-.venv
-__pycache__
-*.py[cod]
-*.log
-*.tmp
-
-# Never bake local secrets or private vault data into images.
-.env
-data
-private
-
-# Frontend build artifacts and dependencies are rebuilt inside Docker.
-frontend/node_modules
-frontend/dist
-frontend/.vite
-frontend/.vite-temp
-frontend/.tmp
-
-# OS/editor noise
-.DS_Store
-Thumbs.db
+# Only application inputs go to the builder. Vaults, backups, tests, .git and
+# personal documentation are excluded even when the build runs remotely.
+**
+!app.py
+!sync_documents.py
+!requirements.txt
+!embed/*.py
+!rag/*.py
+!search/*.py
+!scripts/clear_cache.py
+!scripts/clear_qdrant.py
+!scripts/add_qdrant_index.py
+!scripts/smoke_luna.py
+!frontend/index.html
+!frontend/nginx.conf
+!frontend/package.json
+!frontend/package-lock.json
+!frontend/tsconfig*.json
+!frontend/vite.config.ts
+!frontend/public/favicon.svg
+!frontend/public/icons.svg
+!frontend/src/**/*.ts
+!frontend/src/**/*.tsx
+!frontend/src/**/*.css

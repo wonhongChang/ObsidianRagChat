@@ -1,0 +1,305 @@
+{
+  "description": "Synthetic, answerable cases. Long padding deliberately stresses evidence outside the first 4000 characters. Not a real-world or held-out quality benchmark.",
+  "documents": [
+    {
+      "path": "cache.md",
+      "title": "Response cache",
+      "tags": [
+        "cache"
+      ],
+      "sections": [
+        {
+          "id": "cache-1",
+          "heading": "Retention",
+          "evidence": "Cached responses expire after 1800 seconds.",
+          "query": "캐시 답변은 몇 초 뒤 만료되나요?",
+          "language": "ko"
+        },
+        {
+          "id": "cache-2",
+          "heading": "Failure policy",
+          "evidence": "When Redis is unavailable, the sample service generates an uncached answer.",
+          "query": "What happens to an answer when Redis is unavailable?",
+          "language": "en"
+        },
+        {
+          "id": "cache-3",
+          "heading": "Invalidation",
+          "evidence": "Document updates invalidate keys starting with rag: only.",
+          "query": "文書更新時に削除するキャッシュキーの接頭辞は何ですか？",
+          "language": "ja"
+        }
+      ]
+    },
+    {
+      "path": "indexing.md",
+      "title": "Document indexing",
+      "tags": [
+        "indexing"
+      ],
+      "sections": [
+        {
+          "id": "indexing-1",
+          "heading": "Change detection",
+          "evidence": "A content hash identifies modified documents; timestamps alone are not used.",
+          "query": "How are changed documents detected?",
+          "language": "en"
+        },
+        {
+          "id": "indexing-2",
+          "heading": "Publishing",
+          "evidence": "New vectors must be acknowledged before old vector IDs are deleted.",
+          "query": "新しいベクトルと古いベクトルはどの順番で更新しますか？",
+          "language": "ja"
+        },
+        {
+          "id": "indexing-3",
+          "heading": "Repair",
+          "evidence": "Elasticsearch hashes are checked separately to repair a missing text index without reembedding.",
+          "query": "벡터가 있는데 텍스트 인덱스만 없으면 어떻게 복구하나요?",
+          "language": "ko"
+        }
+      ]
+    },
+    {
+      "path": "ingestion.md",
+      "title": "Markdown ingestion",
+      "tags": [
+        "ingestion"
+      ],
+      "sections": [
+        {
+          "id": "ingestion-1",
+          "heading": "Encoding",
+          "evidence": "The sample loader reads Markdown documents using UTF-8.",
+          "query": "ノートを読み込む文字エンコーディングは何ですか？",
+          "language": "ja"
+        },
+        {
+          "id": "ingestion-2",
+          "heading": "Read failures",
+          "evidence": "A failed file read aborts the scan so an unreadable file is not treated as deleted.",
+          "query": "읽기 실패한 파일을 삭제된 파일로 오인하지 않으려면?",
+          "language": "ko"
+        },
+        {
+          "id": "ingestion-3",
+          "heading": "Attachments",
+          "evidence": "Images and PDF attachments are not indexed by this sample Markdown loader.",
+          "query": "Does the sample loader index PDF attachments?",
+          "language": "en"
+        }
+      ]
+    },
+    {
+      "path": "evidence.md",
+      "title": "Grounded answer evidence",
+      "tags": [
+        "evidence"
+      ],
+      "sections": [
+        {
+          "id": "evidence-1",
+          "heading": "Source selection",
+          "evidence": "Each selected source has a filename, a section title, and a retrieved chunk.",
+          "query": "출처에는 어떤 정보가 포함되나요?",
+          "language": "ko"
+        },
+        {
+          "id": "evidence-2",
+          "heading": "Prompt ordering",
+          "evidence": "The retrieved chunk is placed before surrounding context in the generation input.",
+          "query": "Where does the retrieved chunk appear in the generation input?",
+          "language": "en"
+        },
+        {
+          "id": "evidence-3",
+          "heading": "Missing facts",
+          "evidence": "When the supplied documents lack the requested fact, the assistant must state that evidence is insufficient.",
+          "query": "資料に答えがない場合はどう回答すべきですか？",
+          "language": "ja"
+        }
+      ]
+    },
+    {
+      "path": "backup.md",
+      "title": "Backup operations",
+      "tags": [
+        "backup"
+      ],
+      "sections": [
+        {
+          "id": "backup-1",
+          "heading": "Schedule",
+          "evidence": "The fictional backup job runs at 03:30 UTC every day.",
+          "query": "When does the fictional backup job run?",
+          "language": "en"
+        },
+        {
+          "id": "backup-2",
+          "heading": "Retention",
+          "evidence": "The fictional backup policy retains seven daily snapshots.",
+          "query": "架空のバックアップ方針では何日分のスナップショットを保持しますか？",
+          "language": "ja"
+        },
+        {
+          "id": "backup-3",
+          "heading": "Recovery",
+          "evidence": "The fictional restore verification marker is RESTORE-CHECK-17.",
+          "query": "복구 확인용 마커는 무엇인가요?",
+          "language": "ko"
+        }
+      ]
+    },
+    {
+      "path": "deployment.md",
+      "title": "Deployment handbook",
+      "tags": [
+        "deployment"
+      ],
+      "sections": [
+        {
+          "id": "deployment-1",
+          "heading": "Components",
+          "evidence": "The sample stack separates frontend, API, sync worker, Elasticsearch, and Redis services.",
+          "query": "サンプル環境はどのサービスに分かれていますか？",
+          "language": "ja"
+        },
+        {
+          "id": "deployment-2",
+          "heading": "Streaming",
+          "evidence": "The reverse proxy disables response buffering for server-sent events.",
+          "query": "스트리밍 프록시에서 응답 버퍼링은 어떻게 설정하나요?",
+          "language": "ko"
+        },
+        {
+          "id": "deployment-3",
+          "heading": "Rollback",
+          "evidence": "The fictional rollback runbook restores the previously tagged application image.",
+          "query": "How does the fictional runbook roll back an application deployment?",
+          "language": "en"
+        }
+      ]
+    },
+    {
+      "path": "language.md",
+      "title": "Multilingual behavior",
+      "tags": [
+        "language"
+      ],
+      "sections": [
+        {
+          "id": "language-1",
+          "heading": "Answer language",
+          "evidence": "The requested answer language is one of auto, ko, en, or ja.",
+          "query": "답변 언어 설정에는 어떤 값이 있나요?",
+          "language": "ko"
+        },
+        {
+          "id": "language-2",
+          "heading": "Cache separation",
+          "evidence": "The response language is part of the cache key to separate Korean and Japanese answers.",
+          "query": "How are Korean and Japanese cached answers kept separate?",
+          "language": "en"
+        },
+        {
+          "id": "language-3",
+          "heading": "Cross language",
+          "evidence": "Cross-language retrieval quality must be measured separately from output language compliance.",
+          "query": "多言語検索の品質と出力言語の遵守は同じ評価ですか？",
+          "language": "ja"
+        }
+      ]
+    },
+    {
+      "path": "tagging.md",
+      "title": "Tag filtering",
+      "tags": [
+        "tagging"
+      ],
+      "sections": [
+        {
+          "id": "tagging-1",
+          "heading": "Tag source",
+          "evidence": "The sample loader extracts hashtag metadata from the initial tag block.",
+          "query": "Where does the loader obtain tag metadata?",
+          "language": "en"
+        },
+        {
+          "id": "tagging-2",
+          "heading": "Selection",
+          "evidence": "An explicit tag query restricts candidate documents before semantic ranking.",
+          "query": "明示的なタグ質問では検索候補をいつ絞り込みますか？",
+          "language": "ja"
+        },
+        {
+          "id": "tagging-3",
+          "heading": "Boundary",
+          "evidence": "A metadata tag filter is not a user authorization boundary.",
+          "query": "태그 필터를 사용자 접근 권한으로 봐도 되나요?",
+          "language": "ko"
+        }
+      ]
+    },
+    {
+      "path": "conversation.md",
+      "title": "Conversation routing",
+      "tags": [
+        "conversation"
+      ],
+      "sections": [
+        {
+          "id": "conversation-1",
+          "heading": "Classification",
+          "evidence": "Standalone versus follow-up classification uses explicit rules in this sample.",
+          "query": "独立質問と後続質問の判定は何で行いますか？",
+          "language": "ja"
+        },
+        {
+          "id": "conversation-2",
+          "heading": "Rewrite",
+          "evidence": "A follow-up query is rewritten using recent conversation context before retrieval.",
+          "query": "후속 질문은 검색 전에 어떻게 바뀌나요?",
+          "language": "ko"
+        },
+        {
+          "id": "conversation-3",
+          "heading": "Cache history",
+          "evidence": "Follow-up cache keys include a hash of the effective conversation history.",
+          "query": "What extra information belongs in a follow-up cache key?",
+          "language": "en"
+        }
+      ]
+    },
+    {
+      "path": "evaluation.md",
+      "title": "Evaluation handbook",
+      "tags": [
+        "evaluation"
+      ],
+      "sections": [
+        {
+          "id": "evaluation-1",
+          "heading": "Recall",
+          "evidence": "Recall at k counts the fraction of labeled relevant documents found in the first k results.",
+          "query": "Recall at k는 무엇을 측정하나요?",
+          "language": "ko"
+        },
+        {
+          "id": "evaluation-2",
+          "heading": "Rank",
+          "evidence": "Reciprocal rank is one divided by the rank of the first relevant retrieved document.",
+          "query": "How is reciprocal rank calculated?",
+          "language": "en"
+        },
+        {
+          "id": "evaluation-3",
+          "heading": "Scope",
+          "evidence": "Synthetic context-retention checks do not measure real-world answer accuracy.",
+          "query": "合成データの根拠保持テストで実回答の正確さも保証できますか？",
+          "language": "ja"
+        }
+      ]
+    }
+  ]
+}

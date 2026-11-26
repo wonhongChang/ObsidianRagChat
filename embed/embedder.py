@@ -1,9 +1,22 @@
 from openai import OpenAI
 from dotenv import load_dotenv
+from functools import lru_cache
 import os
 
-load_dotenv()
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+EMBEDDING_MODEL = "text-embedding-3-small"
+
+
+def embedding_client(**options):
+    load_dotenv()
+    key = os.getenv("OPENAI_EMBEDDING_API_KEY", "").strip()
+    if not key:
+        raise ValueError("Hybrid retrieval requires OPENAI_EMBEDDING_API_KEY")
+    return OpenAI(api_key=key, **options)
+
+
+@lru_cache(maxsize=1)
+def _runtime_client():
+    return embedding_client()
 
 def embed_texts(texts):
     """
@@ -32,14 +45,11 @@ def embed_texts(texts):
             continue
 
         print(f"배치 {i//batch_size + 1}: {len(processed_batch)}개 텍스트 처리 중...")
-        print(f"첫 번째 텍스트 샘플 (처음 100자): {processed_batch[0][:100]}")
-
-        response = client.embeddings.create(
-            input=processed_batch,
-            model="text-embedding-3-small"
-        )
-
-        for k, item in enumerate(response.data):
-            result[i + valid_indices[k]] = item.embedding
+        response = _runtime_client().embeddings.create(input=processed_batch, model=EMBEDDING_MODEL)
+        indices = [item.index for item in response.data]
+        if sorted(indices) != list(range(len(processed_batch))):
+            raise ValueError("Incomplete embedding response")
+        for item in response.data:
+            result[i + valid_indices[item.index]] = item.embedding
 
     return result

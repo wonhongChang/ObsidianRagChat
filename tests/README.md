@@ -1,39 +1,19 @@
-# 테스트
+# 공개 회귀 테스트
 
-## 공개 테스트
-
-### `test_question_detector.py`
-
-Follow-up 감지 로직(`search/question_detector.py`)의 단위 테스트.
-외부 서비스 의존 없이 로컬에서 바로 실행 가능합니다.
-
-**실행 방법**
+저장소 루트의 로컬 Python 3.11 가상환경에서 실행하세요. 실행용 Docker 이미지는 테스트와 개발 의존성을 포함하지 않습니다.
 
 ```bash
-# 로컬
-python -m pytest tests/test_question_detector.py -v
-
-# Docker
-docker-compose exec web python -m pytest tests/test_question_detector.py -v
+python -m pip install -r requirements-dev.txt
+python -m pytest tests -q
+python -m scripts.evaluate_rag
 ```
 
-**테스트 항목 (24개)**
+회귀 테스트는 합성 노트, 외부 API 대역, 메모리 Qdrant를 사용합니다. 실제 키·보관함·운영 DB는 필요하지 않습니다. 최초 실행에는 토크나이저 파일을 내려받기 위한 인터넷 연결이 필요할 수 있습니다.
 
-| 분류 | 테스트 |
-|------|--------|
-| Rephrase 감지 | 정확 일치 / 유사도 90%+ / 포함 관계 / 낮은 유사도 |
-| 규칙 기반 독립 판정 | #태그 시작 / 파일명 언급 / 의문사 시작 / X에 대해서 패턴 / 긴 질문(15단어+) / 정의·개념 키워드 |
-| 규칙 기반 Follow-up 판정 | 한국어·일본어·영어 대명사 / 대명사 + 에 대해서 |
-| 엣지 케이스 | 빈 히스토리 / 공백 처리 / 대소문자 무시 / 다국어 혼합 |
-| 저장/조회 | 질문 저장 및 조회 / 최대 10개 제한 / 초기화 |
-| 시나리오 | 다국어 전환 캐싱 / Follow-up 흐름 |
+| 검증 대상 | 확인하는 동작 |
+|---|---|
+| 질문과 답변 | 독립·후속 질문 구분, 대화 주제와 응답 언어 유지, 근거를 담은 일반·스트리밍 답변 |
+| 검색과 근거 | 키워드/벡터 경로 구분, 파일명·경로 순위 결합, 완전 중복과 다른 버전 구분, 근거 청크 보존 |
+| 동기화와 캐시 | 변경분 반영, 부분 실패 후 재시도, Redis 장애·언어·대화별 캐시 분리 |
 
-## 로컬 전용 테스트 (gitignore)
-
-개인 Obsidian 노트 데이터를 기반으로 하는 테스트는 `.gitignore`에 포함되어 공개되지 않습니다.
-
-```
-tests/test_example*.py   # 캐시 시나리오 테스트
-tests/test_example*.md   # 테스트 시나리오 정의
-tests/test_search*.py    # 검색 품질 테스트
-```
+`python -m scripts.evaluate_rag`는 **정답 청크를 제공했을 때** 근거 문장이 보존되는지 검사합니다. 실제 검색 성공률이나 모델 답변 정답률이 아닙니다. 별도의 벡터 검색 실험만 `--retrieval`로 유료 임베딩 API를 호출합니다. 합성 노트 10개·질문 30개의 기존 결과, 명령, 한계는 [평가 문서](EVALUATION.md)를 확인하세요.

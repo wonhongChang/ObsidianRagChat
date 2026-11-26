@@ -1,5 +1,7 @@
-from elasticsearch import Elasticsearch
+from elasticsearch import Elasticsearch, NotFoundError
+from dataclasses import dataclass
 import os
+import re
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -9,6 +11,89 @@ INDEX_NAME = "obsidian_notes"
 
 # Elasticsearch 클라이언트 생성
 es = Elasticsearch([ES_HOST])
+
+
+@dataclass(frozen=True)
+class LexicalHit:
+    id: str
+    score: float
+    payload: dict
+
+
+def search_lexical_notes(query: str, limit: int, filter_tags=None):
+    """Rank existing ES documents and retain the original matching passages."""
+    tags = sorted({t for tag in filter_tags or [] for t in (tag, tag.lower()) if t})
+    terms = query
+    if tags:
+        terms = re.sub(r"#\w+|\w+\s*태그", " ", terms).strip()
+    if not tags and not terms.strip():
+        return []
+    conditions = {}
+    if tags:
+        conditions["filter"] = [{"terms": {"tags": tags}}]
+    if terms.strip():
+        conditions["must"] = [{"multi_match": {
+            "query": terms, "fields": ["filename^3", "text"],
+        }}]
+    try:
+        response = es.search(
+            index=INDEX_NAME, query={"bool": conditions}, size=min(limit * 3, 1000),
+            source_includes=["path", "filename", "tags", "hash", "text"],
+            highlight={
+                "pre_tags": [""], "post_tags": [""], "order": "score",
+                "fields": {"text": {"fragment_size": 350, "number_of_fragments": 4,
+                                    "max_analyzed_offset": 500000}},
+            },
+            sort=[{"_score": "desc"}, {"path": "asc"}],
+        )
+    except NotFoundError as exc:
+        error = exc.body.get("error") if isinstance(exc.body, dict) else None
+        if isinstance(error, dict) and error.get("type") == "index_not_found_exception":
+            return []
+        raise
+
+    seen = set()
+    results = []
+    for hit in response["hits"]["hits"]:
+        doc = hit["_source"]
+        path = doc["path"]
+        identity = doc.get("hash") or path
+        if identity in seen:
+            continue
+        body = doc.get("text") or ""
+        snippets = list(dict.fromkeys(s.strip() for s in hit.get("highlight", {}).get("text", [])
+                                      if s.strip() and s.strip() in body))
+        # Filename matches and tag-only lists need a bounded excerpt even without highlights.
+        if not snippets:
+            snippets = [body[:1600].strip()] if body.strip() else []
+        if not snippets:
+            continue
+        score = float(hit.get("_score") or 0)
+        evidence = [{"id": f"{path}:{i}", "text": s, "score": score}
+                    for i, s in enumerate(snippets[:4])]
+        results.append(LexicalHit(path, score, {
+            "path": path, "filename": doc.get("filename") or path,
+            "tags": doc.get("tags") or [], "hash": doc.get("hash"),
+            "chunk_text": evidence[0]["text"], "retrieved_chunks": evidence,
+            "retrieval_method": "lexical",
+        }))
+        seen.add(identity)
+        if len(results) >= limit:
+            break
+    return results
+
+def get_indexed_documents():
+    """Read ES independently so partial sync failures are repaired next time."""
+    if not es.indices.exists(index=INDEX_NAME):
+        return {}
+    from elasticsearch.helpers import scan
+    return {
+        hit["_source"]["path"]: hit["_source"].get("hash")
+        for hit in scan(
+            es, index=INDEX_NAME,
+            query={"query": {"match_all": {}}, "_source": ["path", "hash"]},
+        )
+    }
 
 def ensure_index_exists():
     """인덱스가 없으면 생성"""
@@ -67,7 +152,7 @@ def index_documents_bulk(documents):
     """여러 문서를 한번에 인덱싱"""
     ensure_index_exists()
 
-    from elasticsearch.helpers import bulk, BulkIndexError
+    from elasticsearch.helpers import bulk
 
     actions = [
         {
@@ -85,27 +170,15 @@ def index_documents_bulk(documents):
         for doc in documents
     ]
 
-    try:
-        success, failed = bulk(es, actions, raise_on_error=False)
-
-        if failed:
-            print(f"⚠️  {len(failed)}개 문서 인덱싱 실패 (성공: {success}개)")
-            for err in failed[:3]:
-                print(f"  ❌ 실패 문서: {err}")
-        else:
-            print(f"✅ {len(documents)}개 문서 Elasticsearch 인덱싱 완료")
-
-    except BulkIndexError as e:
-        print(f"❌ Elasticsearch 인덱싱 에러: {e}")
-        # 에러 발생해도 계속 진행
-        print(f"   → 다음 배치에서 재시도됩니다.")
-    except Exception as e:
-        print(f"❌ 예상치 못한 에러: {e}")
+    success, failed = bulk(es, actions, raise_on_error=False, refresh="wait_for")
+    if failed:
+        raise RuntimeError(f"Elasticsearch bulk write failed for {len(failed)} documents")
+    return success
 
 def delete_document(path):
     """문서 삭제"""
     try:
-        es.delete(index=INDEX_NAME, id=path)
+        es.delete(index=INDEX_NAME, id=path, refresh="wait_for")
         print(f"✅ Elasticsearch에서 '{path}' 삭제 완료")
-    except Exception as e:
-        print(f"⚠️  Elasticsearch 삭제 실패: {e}")
+    except NotFoundError:
+        pass
